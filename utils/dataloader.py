@@ -6,10 +6,12 @@ import chardet
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from sklearn.manifold import SpectralEmbedding
+from torch_geometric.data import Data
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+from torch_geometric.transforms import SVDFeatureReduction
+
 
 def csv_reader(data_path):
     with open(data_path, 'rb') as f:
@@ -29,11 +31,11 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         g = dgl.to_homogeneous(g,ndata=['feature','label','train_mask','val_mask','test_mask'])
 
     elif dataset == 'S-FFSD':
-        if not os.path.exists('data/S-FFSD_graph.bin'):
+        if os.path.exists('data/S-FFSD_graph.bin'):
             g = dgl.load_graphs(f'data/S-FFSD_graph.bin')[0][0]
         else:
-            df = csv_reader(dataset)
-            df = df.loc[:, ~df.columns.str.contains('Unnamed')]
+            data = csv_reader('data/S-FFSD_feat.csv')
+            data = data.fillna(0)
             cal_list = ["Source", "Target", "Location", "Type"]
             for col in cal_list:
                 le = LabelEncoder()
@@ -79,7 +81,13 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         del g.ndata['feat']
         labels = g.ndata['label']
 
-    embedding = SpectralEmbedding(n_components=input_dim) # use Laplace to uniform features dimension
-    features = g.ndata['feature']
-    features = embedding.fit_transform(features)
-    g.ndata['feature'] = torch.from_numpy(features).float()
+    src, dst = g.edges()
+    edge_index = torch.stack([src, dst], dim=0)
+    pyg_data = Data(x=g.ndata['feature'], edge_index=edge_index) 
+    svd_reduction = SVDFeatureReduction(out_channels=input_dim) # use SVD to uniform features dimension
+    pyg_data_ = svd_reduction(pyg_data)
+    g.ndata['feature'] = pyg_data_.x.float()
+
+    print(g.ndata['feature'])
+
+    return g
