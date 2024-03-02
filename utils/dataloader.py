@@ -11,6 +11,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from torch_geometric.transforms import SVDFeatureReduction
+from torch_geometric.datasets import Planetoid, Amazon, Yelp
 
 
 def csv_reader(data_path):
@@ -21,20 +22,27 @@ def csv_reader(data_path):
     return data
 
 def pretrain_dataloader(input_dim:int, dataset:str):
-    print("---Processing " + dataset + "---")
+    
     if dataset == 'Yelp_Fraud' or dataset == 'Amazon_Fraud':
         if dataset == 'Yelp_Fraud':
             data = dgl.data.FraudDataset('yelp')
+            dataname = 'Yelp_Fraud'
         else:
             data = dgl.data.FraudDataset('amazon')
+            dataname = 'Amazon_Fraud'
         g = data[0]
-        g = dgl.to_homogeneous(g,ndata=['feature','label','train_mask','val_mask','test_mask'])
+        g = dgl.to_homogeneous(g, ndata=['feature','label','train_mask','val_mask','test_mask'])
+        src, dst = g.edges()
+        edge_index = torch.stack([src, dst], dim=0)
+        x = g.ndata['feature']
+        y = g.ndata['label']
+        data = Data(x=x, edge_index=edge_index, y=y)
 
     elif dataset == 'S-FFSD':
-        if os.path.exists('data/S-FFSD_graph.bin'):
-            g = dgl.load_graphs(f'data/S-FFSD_graph.bin')[0][0]
+        if os.path.exists('data/S-FFSD'):
+            g = dgl.load_graphs(f'data/S-FFSD/S-FFSD_graph.bin')[0][0]
         else:
-            data = csv_reader('data/S-FFSD_feat.csv')
+            data = csv_reader('data/S-FFSD/S-FFSD_feat.csv')
             data = data.fillna(0)
             cal_list = ["Source", "Target", "Location", "Type"]
             for col in cal_list:
@@ -68,26 +76,29 @@ def pretrain_dataloader(input_dim:int, dataset:str):
 
             g = dgl.to_homogeneous(g,ndata=['feature','label'])
 
-            g_path = f'data/S-FFSD_graph.bin'
+            g_path = f'data/S-FFSD/S-FFSD_graph.bin'
             dgl.data.utils.save_graphs(g_path, [g])
+        src, dst = g.edges()
+        edge_index = torch.stack([src, dst], dim=0)
+        x = g.ndata['feature']
+        y = g.ndata['label']
+        data = Data(x=x, edge_index=edge_index, y=y)
+        dataname = 'S-FFSD'
 
     elif dataset == 'Amazon_Photo' or dataset == 'Amazon_Computer':
         if dataset == 'Amazon_Photo':
-            data = dgl.data.AmazonCoBuyPhotoDataset()
+            dataset = Amazon(root='data/', name='photo')
+            dataname = 'Photo'
         elif dataset == 'Amazon_Computer':
-            data = dgl.data.AmazonCoBuyComputerDataset()
-        g = data[0]
-        g.ndata['feature'] = g.ndata['feat']  # just for uniform variable name
-        del g.ndata['feat']
-        labels = g.ndata['label']
+            dataset = Amazon(root='data/', name='computers')
+            dataname = 'Computers'
+        data = dataset.data
 
-    src, dst = g.edges()
-    edge_index = torch.stack([src, dst], dim=0)
-    pyg_data = Data(x=g.ndata['feature'], edge_index=edge_index) 
+    elif dataset == 'Cora' or dataset == 'CiteSeer' or dataset == 'PubMed':
+        dataset = Planetoid(root='dataset/', name=dataset)
+        data = dataset.data
+
     svd_reduction = SVDFeatureReduction(out_channels=input_dim) # use SVD to uniform features dimension
-    pyg_data_ = svd_reduction(pyg_data)
-    g.ndata['feature'] = pyg_data_.x.float()
+    data = svd_reduction(data)
 
-    print(g.ndata['feature'])
-
-    return g
+    return data, dataname

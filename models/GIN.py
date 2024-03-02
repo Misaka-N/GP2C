@@ -1,43 +1,37 @@
-import dgl
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from dgl.nn import GINConv
+from torch.nn import Sequential, Linear, ReLU, BatchNorm1d
+from torch_geometric.nn import GINConv, global_add_pool
+from torch_geometric.data import DataLoader
 
-class ApplyNodeFunc(nn.Module):
-    """
-    Applying a multi-layer perceptron (MLP) to each node
-    """
-    def __init__(self, mlp):
-        super(ApplyNodeFunc, self).__init__()
-        self.mlp = mlp
-
-    def forward(self, h):
-        h = self.mlp(h)
-        return h
-
-class GIN(nn.Module):
-    def __init__(self, num_layers, num_mlp_layers, input_dim, hidden_dim, output_dim):
+class GIN(torch.nn.Module):
+    def __init__(self, num_layers, feat_dim, hidden_dim, out_dim):
         super(GIN, self).__init__()
-        self.layers = nn.ModuleList()
-        
-        # FIrst GIN, dimension is input_dim*hidden_dim
-        mlp = nn.Sequential(nn.Linear(input_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, hidden_dim))
-        self.layers.append(GINConv(ApplyNodeFunc(mlp), 'sum'))
-        
-        # Other GINs are hidden_dim*hidden_dim
-        for layer in range(num_layers - 1):
-            mlp = nn.Sequential(nn.Linear(hidden_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, hidden_dim))
-            self.layers.append(GINConv(ApplyNodeFunc(mlp), 'sum'))
-        
-        # Output layer
-        self.linear = nn.Linear(hidden_dim, output_dim)
+        self.convs = torch.nn.ModuleList()
+        self.bns = torch.nn.ModuleList()
 
-    def forward(self, g, features):
-        h = features
-        for layer in self.layers:
-            h = layer(g, h)
-        g.ndata['h'] = h
-        hg = dgl.mean_nodes(g, 'h')
-        return self.linear(hg)
-
+        # First Layer
+        nn1 = Sequential(Linear(feat_dim, hidden_dim), ReLU(), Linear(hidden_dim, hidden_dim))
+        self.convs.append(GINConv(nn1))
+        self.bns.append(BatchNorm1d(hidden_dim))
+        
+        # L-1 Layers
+        for _ in range(num_layers - 1):
+            nn = Sequential(Linear(hidden_dim, hidden_dim), ReLU(), Linear(hidden_dim, hidden_dim))
+            self.convs.append(GINConv(nn))
+            self.bns.append(BatchNorm1d(hidden_dim))
+        
+        # Full Connected Layer
+        self.fc = torch.nn.Sequential(Linear(hidden_dim, hidden_dim),
+                                      ReLU(),
+                                      Linear(hidden_dim, out_dim))
+    
+    def forward(self, x, edge_index, batch):
+        for conv, bn in zip(self.convs, self.bns):
+            x = conv(x, edge_index)
+            x = bn(x)
+            x = torch.relu(x)
+        
+        x = global_add_pool(x, batch)
+        x = self.fc(x)
+        
+        return x
