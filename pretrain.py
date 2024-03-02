@@ -187,3 +187,4 @@ if __name__ == "__main__":
         if early_stopper.early_stop:
             print("Stopping training...")
             break
+
