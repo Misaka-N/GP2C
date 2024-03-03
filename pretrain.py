@@ -1,7 +1,7 @@
-import tqdm
 import torch
 import random
 import argparse
+from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 from random import shuffle
@@ -102,6 +102,21 @@ def connect_graphs(graph_list, bridge_nodes, threshold):
     big_graph = Data(x=big_x, edge_index=big_edge_index)
     return big_graph
 
+
+def get_composed_graphs(augment, batch_size, loader_list, bridge_graphs_batch):
+    composed_graphs = []
+    for augs, name in zip(zip(*loader_list), augment): # get aug_X simultaneously from all datasets to compose subgraphs
+        graphs_for_one_aug = []
+        for _, batch in tqdm(zip(zip(*augs), bridge_graphs_batch), desc="Augmentation: " + name): # simultaneously get one graph of a certain augmentation from each datasets
+            *subgraphs, bridge_nodes = batch
+            composed_graph = connect_graphs(subgraphs, bridge_nodes, args.threshold)
+            graphs_for_one_aug.append(composed_graph)
+        graphs_for_one_aug = DataLoader(graphs_for_one_aug, batch_size=batch_size, shuffle=False, num_workers=1)
+    composed_graphs.append()
+
+    return composed_graphs
+
+
 def contrastive_train(model, loaders, optimizer):
     model.train()
     train_loss, total_step = 0, 0
@@ -121,6 +136,34 @@ def contrastive_train(model, loaders, optimizer):
                 total_step = total_step + 1
 
     return train_loss / total_step
+
+
+def adjust_subgraphs(node_num, batch_size, loaders, threshold):
+    adjusted_loaders = []
+    for loader in loaders:
+        adjusted_batches = []
+        new_loader = DataLoader(dataset=loader.dataset, batch_size=1, shuffle=False, num_workers=1)
+        for composed_graph in new_loader:
+            edge_index = composed_graph.edge_index
+            mask = (edge_index[0] >= node_num) & (edge_index[1] >= node_num)
+            edge_index = edge_index[:, mask]
+            
+            bridge_feat = composed_graph.x[:node_num]
+            data_feat = composed_graph.x[node_num:]
+            sim_matrix = cosine_similarity(data_feat, bridge_feat)
+            src, dst = torch.where(sim_matrix >= threshold)
+
+            new_edges = torch.cat([torch.stack([src, dst], dim=0), torch.stack([dst, src], dim=0)], dim=1)
+
+            edge_index.append(new_edges)
+            composed_graph.edge_index = edge_index
+            
+            adjusted_batches.append(composed_graph)
+        adjusted_loader = DataLoader(adjusted_batches, batch_size=batch_size, shuffle=False)
+        adjusted_loaders.append(adjusted_loader)
+
+    return adjusted_loaders
+
 
 if __name__ == "__main__":
     print("PyTorch version:", torch.__version__)
@@ -161,17 +204,12 @@ if __name__ == "__main__":
         loader_list.append(loader)
 
     # Get composed graphs
+    print("---Getting composed graphs---")
     bridge_nodes = BridgeNodes(feat_dim=args.node_dim, group_num=args.node_group, node_num=args.node_num, threshold=args.threshold)
-    bridge_graphs_batch = DataLoader(bridge_nodes, batch_size=1, shuffle=True, num_workers=1)
-    composed_graphs = []
-    for augs in zip(*loader_list): # get aug_X simultaneously from all datasets to compose subgraphs
-        graphs_for_one_aug = []
-        for i, batch in enumerate(zip(*augs, bridge_graphs_batch)): # simultaneously get one graph of a certain augmentation from each datasets
-            *subgraphs, bridge_nodes = batch
-            composed_graph = connect_graphs(subgraphs, bridge_nodes, args.threshold)
-            graphs_for_one_aug.append(composed_graph)
-        graphs_for_one_aug = DataLoader(graphs_for_one_aug, batch_size=args.batch_size, shuffle=False, num_workers=1)
-    composed_graphs.append() 
+    bridge_graphs_batch = DataLoader(bridge_nodes.node_group, batch_size=1, shuffle=False, num_workers=1)
+    composed_graphs = get_composed_graphs(args.augment, args.batch_size, loader_list, bridge_graphs_batch)
+    print(composed_graphs)
+    quit()
 
     # Pretrain GNN
     gnn = GIN(num_layers=args.gnn_layer, feat_dim=args.input_dim, hidden_dim=args.hidden_dim, out_dim=args.out_dim)
@@ -187,4 +225,6 @@ if __name__ == "__main__":
         if early_stopper.early_stop:
             print("Stopping training...")
             break
+        else:
+            composed_graphs = adjust_subgraphs(args.node_num, args.batch_size, composed_graphs, args.threshold)
 

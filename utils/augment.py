@@ -21,21 +21,20 @@ def subgraph_extraction(graph, radio):
     node_num = graph.x.size(0)
     subgraph_node_num = int(node_num * radio)
     
-    idx_sorted_by_degree = np.argsort(degrees)[::-1]
+    idx_sorted_by_degree = torch.argsort(torch.tensor(degrees, dtype=torch.float), descending=True)
     idx_subgraph = idx_sorted_by_degree[:subgraph_node_num]
     
-    mask = np.in1d(edge_index[0], idx_subgraph) & np.in1d(edge_index[1], idx_subgraph)
-    edges_subgraph = edge_index[:, mask]
+    mask = torch.tensor(np.in1d(edge_index[0], idx_subgraph.numpy()) & np.in1d(edge_index[1], idx_subgraph.numpy()), dtype=torch.bool)
+    edges_subgraph = torch.tensor(edge_index[:, mask.numpy()], dtype=torch.long)
     
     subgraph = graph.clone()
     subgraph.x = graph.x[idx_subgraph]
-    subgraph.edge_index = torch.tensor(edges_subgraph, dtype=torch.long)
+    subgraph.edge_index = edges_subgraph
     
-    idx_mapping = {idx: i for i, idx in enumerate(idx_subgraph)}
-    for i in range(edges_subgraph.shape[1]):
-        edges_subgraph[0, i] = idx_mapping[edges_subgraph[0, i]]
-        edges_subgraph[1, i] = idx_mapping[edges_subgraph[1, i]]
-    subgraph.edge_index = torch.tensor(edges_subgraph, dtype=torch.long)
+    idx_mapping = {idx.item(): i for i, idx in enumerate(idx_subgraph)}
+    for i in range(subgraph.edge_index.size(1)):
+        subgraph.edge_index[0, i] = idx_mapping[subgraph.edge_index[0, i].item()]
+        subgraph.edge_index[1, i] = idx_mapping[subgraph.edge_index[1, i].item()]
     
     return subgraph
 

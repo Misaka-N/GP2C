@@ -23,7 +23,7 @@ def get_pretrain_args():
     parser.add_argument("--node_num", type=int, default=16, help="num of bridge nodes")
     parser.add_argument("--node_group", type=int, default=256, help="group num of bridge nodes, should be same as the subgraph num of each dataset")
     parser.add_argument("--node_dim", type=int, default=128, help="feature dimension of bridge nodes, should be same as input dimension of subgraph nodes")
-    parser.add_argument("--node_threshold", type=int, default=16, help="threshold for connecting nodes")
+    parser.add_argument("--threshold", type=int, default=16, help="threshold for connecting nodes")
 
     # Pretrain Process
     parser.add_argument("--batch_size", type=int, default=8, help="subgraph num of one batch")
