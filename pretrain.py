@@ -5,6 +5,7 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 from random import shuffle
+from itertools import islice, cycle
 from utils.args import get_pretrain_args
 from utils.dataloader import pretrain_dataloader
 from torch_geometric.loader import DataLoader
@@ -19,14 +20,15 @@ from utils.tools import cosine_similarity, EarlyStopping
 
 class ContrastiveLearning(nn.Module):
 
-    def __init__(self, GNN, out_dim, temperature):
+    def __init__(self, GNN, output_dim, temperature, loss_bias):
         super(ContrastiveLearning, self).__init__()
         self.bias = 1e-4 # used for loss calculation
         self.T = temperature
         self.GNN = GNN
-        self.projector = nn.Sequential(nn.Linear(out_dim, out_dim),
+        self.projector = nn.Sequential(nn.Linear(output_dim, output_dim),
                                        nn.PReLU(),
-                                       nn.Linear(out_dim, out_dim))
+                                       nn.Linear(output_dim, output_dim))
+        self.loss_bias = loss_bias
         
     def forward_cl(self, x, edge_index, batch):
         x = self.GNN(x, edge_index, batch)
@@ -40,7 +42,9 @@ class ContrastiveLearning(nn.Module):
         sim_matrix = torch.exp(sim_matrix / self.T) # using temperature to scale results
         pos_sim = sim_matrix[range(batch_size), range(batch_size)] # calculate for positive samples(in diagonal of sim_matrix )
         loss = pos_sim / ((sim_matrix.sum(dim=1) - pos_sim) + self.bias)
-        loss = -torch.log(loss).mean()
+        loss = -torch.log(loss).mean() + self.loss_bias
+        
+        return loss
 
 
 class Augmentation(nn.Module):
@@ -57,7 +61,7 @@ class Augmentation(nn.Module):
 
     def get_augmented_graph(self, graph_list):
         if len(graph_list) % self.batch_size == 1:
-            raise KeyError("Batch_size {} makes the last batch only contain 1 graph, which will trigger a zero bug.".format(batch_size))
+            raise KeyError("Batch_size {} makes the last batch only contain 1 graph, which will trigger a zero bug.".format(self.batch_size))
         
         view_list, loader = [], []
         shuffle(graph_list)
@@ -70,7 +74,7 @@ class Augmentation(nn.Module):
             view_list.append(temp_list)
 
         for view in view_list:
-            temp_loader = DataLoader(view, batch_size=1, shuffle=False, num_workers=1) # Must set shuffle=false, otherwise the sim_matrix is wrong!
+            temp_loader = DataLoader(view, batch_size=1, shuffle=False, num_workers=0) # Must set shuffle=false, otherwise the sim_matrix is wrong!
             loader.append(temp_loader)
 
         return loader # [aug_num, batch_num, batch_size]
@@ -103,16 +107,18 @@ def connect_graphs(graph_list, bridge_nodes, threshold):
     return big_graph
 
 
-def get_composed_graphs(augment, batch_size, loader_list, bridge_graphs_batch):
-    composed_graphs = []
+def get_composed_graphs(augment, subgraph_num, batch_size, loader_list, bridge_graphs, threshold):
+    composed_graphs, aug_cnt = [], 0
     for augs, name in zip(zip(*loader_list), augment): # get aug_X simultaneously from all datasets to compose subgraphs
-        graphs_for_one_aug = []
-        for _, batch in tqdm(zip(zip(*augs), bridge_graphs_batch), desc="Augmentation: " + name): # simultaneously get one graph of a certain augmentation from each datasets
-            *subgraphs, bridge_nodes = batch
-            composed_graph = connect_graphs(subgraphs, bridge_nodes, args.threshold)
+        graphs_for_one_aug, step = [], 0
+        for subgraphs in tqdm(zip(*augs), desc="Augmentation: " + name): # simultaneously get one graph of a certain augmentation from each datasets
+            bridge_nodes = bridge_graphs[aug_cnt*subgraph_num+step]
+            step += 1
+            composed_graph = connect_graphs(subgraphs, bridge_nodes, threshold)
             graphs_for_one_aug.append(composed_graph)
-        graphs_for_one_aug = DataLoader(graphs_for_one_aug, batch_size=batch_size, shuffle=False, num_workers=1)
-    composed_graphs.append()
+        graphs_for_one_aug = DataLoader(graphs_for_one_aug, batch_size=batch_size, shuffle=False, num_workers=0)
+        aug_cnt += 1
+        composed_graphs.append(graphs_for_one_aug)
 
     return composed_graphs
 
@@ -142,20 +148,27 @@ def adjust_subgraphs(node_num, batch_size, loaders, threshold):
     adjusted_loaders = []
     for loader in loaders:
         adjusted_batches = []
-        new_loader = DataLoader(dataset=loader.dataset, batch_size=1, shuffle=False, num_workers=1)
+        new_loader = DataLoader(dataset=loader.dataset, batch_size=1, shuffle=False, num_workers=0)
         for composed_graph in new_loader:
             edge_index = composed_graph.edge_index
             mask = (edge_index[0] >= node_num) & (edge_index[1] >= node_num)
             edge_index = edge_index[:, mask]
             
+            # Connect bridge nodes and subgraph nodes
             bridge_feat = composed_graph.x[:node_num]
             data_feat = composed_graph.x[node_num:]
-            sim_matrix = cosine_similarity(data_feat, bridge_feat)
-            src, dst = torch.where(sim_matrix >= threshold)
+            sim_matrix_out = cosine_similarity(data_feat, bridge_feat)
+            src_out, dst_out = torch.where(sim_matrix_out >= threshold)
 
-            new_edges = torch.cat([torch.stack([src, dst], dim=0), torch.stack([dst, src], dim=0)], dim=1)
+            new_edges_out = torch.cat([torch.stack([src_out, dst_out], dim=0), torch.stack([dst_out, src_out], dim=0)], dim=1)
 
-            edge_index.append(new_edges)
+            # Connect bridge nodes and bridge nodes
+            sim_matrix_in = cosine_similarity(bridge_feat, bridge_feat)
+            src_in, dst_in = torch.where(sim_matrix_in >= threshold)
+
+            new_edges_in = torch.cat([torch.stack([src_in, dst_in], dim=0), torch.stack([dst_in, src_in], dim=0)], dim=1)
+
+            edge_index = torch.cat((edge_index, new_edges_out, new_edges_in), dim=1)
             composed_graph.edge_index = edge_index
             
             adjusted_batches.append(composed_graph)
@@ -205,23 +218,22 @@ if __name__ == "__main__":
 
     # Get composed graphs
     print("---Getting composed graphs---")
-    bridge_nodes = BridgeNodes(feat_dim=args.node_dim, group_num=args.node_group, node_num=args.node_num, threshold=args.threshold)
-    bridge_graphs_batch = DataLoader(bridge_nodes.node_group, batch_size=1, shuffle=False, num_workers=1)
-    composed_graphs = get_composed_graphs(args.augment, args.batch_size, loader_list, bridge_graphs_batch)
-    print(composed_graphs)
-    quit()
+    bridge_nodes = BridgeNodes(feat_dim=args.node_dim, group_num=args.node_group*len(args.augment), node_num=args.node_num, threshold=args.threshold)
+    bridge_graphs = bridge_nodes.inner_update()
+    composed_graphs = get_composed_graphs(args.augment, args.subgraphs, args.batch_size, loader_list, bridge_graphs, args.threshold)
 
     # Pretrain GNN
-    gnn = GIN(num_layers=args.gnn_layer, feat_dim=args.input_dim, hidden_dim=args.hidden_dim, out_dim=args.out_dim)
-    model = ContrastiveLearning(GNN=gnn, out_dim=args.out_dim, temperature=args.temperature)
+    print("---Pretraining GNN---")
+    gnn = GIN(num_layers=args.gnn_layer, feat_dim=args.input_dim, hidden_dim=args.hidden_dim, output_dim=args.output_dim)
+    model = ContrastiveLearning(GNN=gnn, output_dim=args.output_dim, temperature=args.temperature, loss_bias=args.loss_bias)
     optimizer = optim.Adam(gnn.parameters(), lr=args.lr, weight_decay=args.decay)
-    early_stopper = EarlyStopping(id=args.id, datasets=args.datasets, methods=args.methods, gnn_type='GIN', patience=args.patience, min_delta=0)
+    early_stopper = EarlyStopping(id=args.id, datasets=args.dataset, methods=args.augment, gnn_type='GIN', patience=args.patience, min_delta=0)
  
     for epoch in range(args.max_epoches):
         train_loss = contrastive_train(model=model, loaders=composed_graphs, optimizer=optimizer)
         print("Epoch: {} | train_loss: {:.5}".format(epoch+1, train_loss))
 
-        early_stopper(train_loss)
+        early_stopper(model, train_loss)
         if early_stopper.early_stop:
             print("Stopping training...")
             break

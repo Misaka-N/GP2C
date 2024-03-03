@@ -4,7 +4,7 @@ from torch_geometric.nn import GINConv, global_add_pool
 from torch_geometric.data import DataLoader
 
 class GIN(torch.nn.Module):
-    def __init__(self, num_layers, feat_dim, hidden_dim, out_dim):
+    def __init__(self, num_layers, feat_dim, hidden_dim, output_dim):
         super(GIN, self).__init__()
         self.convs = torch.nn.ModuleList()
         self.bns = torch.nn.ModuleList()
@@ -23,7 +23,7 @@ class GIN(torch.nn.Module):
         # Full Connected Layer
         self.fc = torch.nn.Sequential(Linear(hidden_dim, hidden_dim),
                                       ReLU(),
-                                      Linear(hidden_dim, out_dim))
+                                      Linear(hidden_dim, output_dim))
     
     def forward(self, x, edge_index, batch):
         for conv, bn in zip(self.convs, self.bns):

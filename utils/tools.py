@@ -38,4 +38,4 @@ class EarlyStopping:
         else:
             self.best_score = val_loss
             self.counter = 0
-            torch.save(model.gnn.state_dict(), "pretrained_gnn/{}_{}_{}_{}.pth".format(self.datasets, self.methods, self.gnn_type, self.id))
+            torch.save(model.GNN.state_dict(), "pretrained_gnn/{}_{}_{}_{}.pth".format(self.datasets, self.methods, self.gnn_type, self.id))

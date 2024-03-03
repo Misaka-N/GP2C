@@ -12,6 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from torch_geometric.transforms import SVDFeatureReduction
 from torch_geometric.datasets import Planetoid, Amazon, Yelp
+import torch.nn.functional as F
 
 
 def csv_reader(data_path):
@@ -98,7 +99,11 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         dataset = Planetoid(root='dataset/', name=dataset)
         data = dataset.data
 
-    svd_reduction = SVDFeatureReduction(out_channels=input_dim) # use SVD to uniform features dimension
-    data = svd_reduction(data)
+    if data.x.shape[1] < input_dim:
+        padding_size = input_dim - data.x.shape[1]
+        data.x = F.pad(data.x, (0, padding_size), 'constant', 0)
+    else:
+        svd_reduction = SVDFeatureReduction(out_channels=input_dim) # use SVD to uniform features dimension
+        data = svd_reduction(data)
 
     return data, dataname
