@@ -34,7 +34,7 @@ def get_pretrain_args():
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
-    parser.add_argument("--seed", type=int, default=3407, help="random seed")
+    parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--patience", type=int, default=10, help="early stop steps")
     parser.add_argument("--id", type=int, default=0, help="just for identifying models")
     
