@@ -82,8 +82,8 @@ if __name__ == "__main__":
     gnn = torch.load(args.pretrained_model)
     for param in gnn.parameters(): # freeze GNN
         param.requires_grad = False
-    optimizer = optim.Adam(gnn.parameters(), lr=args.lr, weight_decay=args.decay)
-    early_stopper = EarlyStopping(path=args.path, patience=args.patience, min_delta=0)
+    #optimizer = optim.Adam(gnn.parameters(), lr=args.lr, weight_decay=args.decay)
+    #early_stopper = EarlyStopping(path=args.path, patience=args.patience, min_delta=0)
 
     # start a new wandb run to track this script
     wandb.init(
@@ -93,12 +93,32 @@ if __name__ == "__main__":
         config=args.__dict__
         )
 
+    answering = torch.nn.Sequential(
+        torch.nn.Linear(args.prompt_dim, num_classes),
+        torch.nn.Softmax(dim=1))
+    
+    optimizer = optim.Adam(list(answering.parameters()) + list(prompt_pool.parameters()), lr=args.lr, weight_decay=args.decay)
+
     gnn.train()
     prompt_pool.train()
+    answering.train()
+
     for epoch in range(args.max_epoched):
-        predict, label = [], []
+        # predict, label = [], []
+        running_loss = 0
         for subgraph in enumerate(train_set):
             read_out = subgraph.x.mean()
             summed_prompt = prompt_pool(read_out, args.if_train)
             predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt).mean()
+            pre = answering(predict_feat)
+
+            train_loss = torch.nn.CrossEntropyLoss(pre, subgraph.y)
+            running_loss += train_loss.item()
+
+            optimizer.zero_grad()
+            train_loss.backward()
+            optimizer.step()
+        running_loss /= len(train_set)
+        wandb.log({"train_loss": running_loss})
+
         
