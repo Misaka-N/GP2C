@@ -19,7 +19,7 @@ def cosine_similarity(x1, x2):
 
 
 class EarlyStopping:
-    def __init__(self, id, datasets, methods, gnn_type, patience=10, min_delta=0):
+    def __init__(self, path, patience=10, min_delta=0):
         """
         :param patience: Can tolerate no improvement within how many epochs
         :param min_delta: The minimum amount of change for improvement
@@ -30,12 +30,7 @@ class EarlyStopping:
         self.best_score = None
         self.early_stop = False
 
-        dataset_list = [str(item) for item in datasets]
-        methods_list = [str(item) for item in methods]
-        self.id = id
-        self.datasets = '+'.join(dataset_list)
-        self.methods = '+'.join(methods_list)
-        self.gnn_type = gnn_type
+        self.path = path
 
     def __call__(self, model, val_loss):
         if self.best_score is None:
@@ -49,4 +44,4 @@ class EarlyStopping:
         else:
             self.best_score = val_loss
             self.counter = 0
-            torch.save(model.GNN, "pretrained_gnn/{}_{}_{}_{}.pth".format(self.datasets, self.methods, self.gnn_type, self.id))
+            torch.save(model.GNN, self.path)

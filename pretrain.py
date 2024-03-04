@@ -1,12 +1,9 @@
 import torch
 import wandb
-import random
-import argparse
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 from random import shuffle
-from itertools import islice, cycle
 from utils.args import get_pretrain_args
 from utils.dataloader import pretrain_dataloader
 from torch_geometric.loader import DataLoader
@@ -230,7 +227,7 @@ if __name__ == "__main__":
     gnn = GIN(num_layers=args.gnn_layer, feat_dim=args.input_dim, hidden_dim=args.hidden_dim, output_dim=args.output_dim)
     model = ContrastiveLearning(GNN=gnn, output_dim=args.output_dim, temperature=args.temperature, loss_bias=args.loss_bias)
     optimizer = optim.Adam(gnn.parameters(), lr=args.lr, weight_decay=args.decay)
-    early_stopper = EarlyStopping(id=args.id, datasets=args.dataset, methods=args.augment, gnn_type='GIN', patience=args.patience, min_delta=0)
+    early_stopper = EarlyStopping(path=args.path, patience=args.patience, min_delta=0)
  
     # start a new wandb run to track this script
     wandb.init(
