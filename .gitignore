@@ -4,3 +4,6 @@ pretrain_gnn/
 # cache files
 models/__pycache__
 utils/__pycache__
+
+# wandb
+wandb/
