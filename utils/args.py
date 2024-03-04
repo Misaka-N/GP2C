@@ -47,11 +47,12 @@ def get_downstream_args():
 
     # Datasets & Models
     parser.add_argument("--task", type=str, default='node', help="if node level tasks")
-    parser.add_argument("--dataset", type=str, default=["Amazon_Photo"],
-                        help="Datasets used for pretrain")
+    parser.add_argument("--dataset", type=str, default="Amazon_Photo",
+                        help="Datasets used for downstream tasks")
     parser.add_argument("--pretrained_model", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GIN_0.pth", help="pretrained model path")
     parser.add_argument("--shot", type=int, default=100, help="shot for few-shot learning")
     parser.add_argument("--k_hop", type=int, default=2, help="k-hop subgraph")
+    parser.add_argument("--input_dim", type=int, default=128, help="input dimension")
 
     # Prompt
     parser.add_argument("--new_pool", type=int, default=1, help="whether needs a new prompt pool, 1 is for 'Yes', and 0 is for 'No'")
@@ -59,7 +60,8 @@ def get_downstream_args():
     parser.add_argument("--prompt_num", type=int, default=10, help="prompt num for each component")
     parser.add_argument("--prompt_dim", type=int, default=256, help="dimension of prompt, should be same as hidden_dim")
     parser.add_argument("--prompt_layers", type=int, default=-1, help="-1 is for shallow prompt, other >0 values are for deep prompt(should be same as gnn_layer)")
-    parser.add_argument("--path", type=str, default='prompt_pool_0.pth', help="prompt pool saving path")
+    parser.add_argument("--prompt_path", type=str, default='prompt_pool_0.pth', help="prompt pool saving path")
+    parser.add_argument("--answering_path", type=str, default='answering_0.pth', help="answering function saving path")
 
     # Downstream Tasks
     parser.add_argument("--lr", type=float, default=0.01, help="learning rate for downstream training")

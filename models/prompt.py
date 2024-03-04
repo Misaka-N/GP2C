@@ -16,7 +16,7 @@ class PromptComponent(nn.Module):
         # self.if_new = False # whether has a new task need to learn
 
 
-    def gram_schmidt(prompt):
+    def gram_schmidt(self, prompt):
         basis = []
         for p in prompt:
             w = p - sum(torch.dot(p, b) * b for b in basis)
@@ -34,12 +34,12 @@ class PromptComponent(nn.Module):
             new_prompt = nn.ParameterList()
             for _ in self.layers:
                 prompt_tmp = nn.Parameter(torch.FloatTensor(self.prompt_num, self.prompt_dim), requires_grad=True)
-                new_prompt.append(self.gram_schmidt(prompt_tmp))
+                new_prompt.append(prompt_tmp)
+            new_prompt = self.gram_schmidt(new_prompt)
             prompt_component['prompt'] = new_prompt
             self.prompt_pool.append(prompt_component)
         else:
-            prompt_tmp = nn.Parameter(torch.FloatTensor(self.prompt_num, self.prompt_dim), requires_grad=True)
-            new_prompt = nn.ParameterList((self.gram_schmidt(prompt_tmp)))
+            new_prompt = nn.Parameter(torch.FloatTensor(self.prompt_num, self.prompt_dim), requires_grad=True)
             prompt_component['prompt'] = new_prompt
             self.prompt_pool.append(prompt_component)
 
