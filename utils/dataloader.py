@@ -31,6 +31,7 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         else:
             data = dgl.data.FraudDataset('amazon')
             dataname = 'Amazon_Fraud'
+        num_classes = 2
         g = data[0]
         g = dgl.to_homogeneous(g, ndata=['feature','label','train_mask','val_mask','test_mask'])
         src, dst = g.edges()
@@ -40,6 +41,7 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         data = Data(x=x, edge_index=edge_index, y=y)
 
     elif dataset == 'S-FFSD':
+        num_classes = 2
         if os.path.exists('data/S-FFSD'):
             g = dgl.load_graphs(f'data/S-FFSD/S-FFSD_graph.bin')[0][0]
         else:
@@ -93,11 +95,13 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         elif dataset == 'Amazon_Computer':
             dataset = Amazon(root='data/', name='computers')
             dataname = 'Computers'
+        num_classes = dataset.num_classes
         data = dataset.data
 
     elif dataset == 'Cora' or dataset == 'CiteSeer' or dataset == 'PubMed':
         dataset = Planetoid(root='dataset/', name=dataset)
         data = dataset.data
+        num_classes = dataset.num_classes
 
     if data.x.shape[1] < input_dim:
         padding_size = input_dim - data.x.shape[1]
@@ -106,4 +110,4 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         svd_reduction = SVDFeatureReduction(out_channels=input_dim) # use SVD to uniform features dimension
         data = svd_reduction(data)
 
-    return data, dataname
+    return data, dataname, num_classes

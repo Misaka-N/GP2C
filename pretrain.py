@@ -200,7 +200,7 @@ if __name__ == "__main__":
     if args.task == 'node': # Node level tasks
         for dataset in args.dataset:
             print("---Downloading dataset: " + dataset + "---")
-            data, dataname = pretrain_dataloader(input_dim=args.input_dim, dataset=dataset)
+            data, dataname, _ = pretrain_dataloader(input_dim=args.input_dim, dataset=dataset)
             print("---Getting subgraphs of dataset: " + dataset + "---")
             x = data.x.detach()
             edge_index = data.edge_index
