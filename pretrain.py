@@ -16,7 +16,7 @@ from torch_geometric.loader.cluster import ClusterData
 from utils.augment import graph_views
 from models.GIN import GIN
 from models.bridge_nodes import BridgeNodes
-from utils.tools import cosine_similarity, EarlyStopping
+from utils.tools import cosine_similarity, EarlyStopping, set_random
 
 
 class ContrastiveLearning(nn.Module):
@@ -180,17 +180,19 @@ def adjust_subgraphs(node_num, batch_size, loaders, threshold):
 
 
 if __name__ == "__main__":
+    args = get_pretrain_args()
+
     print("PyTorch version:", torch.__version__)
 
     if torch.cuda.is_available():
         print("CUDA is available")
         print("CUDA version:", torch.version.cuda)
         device = torch.device("cuda")
+        set_random(args.seed, True)
     else:
         print("CUDA is not available")
         device = torch.device("cpu")
-
-    args = get_pretrain_args()
+        set_random(args.seed, False)
 
     # Get pretrain datasets
     # TODO: Deal with Graph Tasks(Now only support node tasks)

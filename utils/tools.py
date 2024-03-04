@@ -1,4 +1,15 @@
 import torch
+import random
+import numpy as np
+
+def set_random(seed, cuda):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed) 
+    if cuda:
+        torch.cuda.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
+
 
 def cosine_similarity(x1, x2):
     x1_norm = x1.norm(p=2, dim=1, keepdim=True)
