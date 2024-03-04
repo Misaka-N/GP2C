@@ -248,6 +248,7 @@ if __name__ == "__main__":
         early_stopper(model, train_loss)
         if early_stopper.early_stop:
             print("Stopping training...")
+            print("Best Score: ", early_stopper.best_score)
             break
         else:
             composed_graphs = adjust_subgraphs(args.node_num, args.batch_size, composed_graphs, args.threshold)
