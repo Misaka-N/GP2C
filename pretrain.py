@@ -1,4 +1,5 @@
 import torch
+import wandb
 import random
 import argparse
 from tqdm import tqdm
@@ -229,8 +230,17 @@ if __name__ == "__main__":
     optimizer = optim.Adam(gnn.parameters(), lr=args.lr, weight_decay=args.decay)
     early_stopper = EarlyStopping(id=args.id, datasets=args.dataset, methods=args.augment, gnn_type='GIN', patience=args.patience, min_delta=0)
  
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="l2s_pretrain",
+        # track hyperparameters and run metadata
+        config=args.__dict__
+        )
+
     for epoch in range(args.max_epoches):
         train_loss = contrastive_train(model=model, loaders=composed_graphs, optimizer=optimizer)
+        wandb.log({"loss": train_loss}) # log the loss to wandb
         print("Epoch: {} | train_loss: {:.5}".format(epoch+1, train_loss))
 
         early_stopper(model, train_loss)
