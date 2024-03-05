@@ -128,6 +128,8 @@ if __name__ == "__main__":
             for _, subgraph in enumerate(train_set):
                 read_out = subgraph.x.mean(dim=0)
                 summed_prompt = prompt_pool(read_out, args.if_train)
+                print(summed_prompt[0].grad)
+                quit()
                 predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
                 pre = answering(predict_feat.unsqueeze(0))
 
@@ -197,6 +199,6 @@ if __name__ == "__main__":
     recall = recall_score(label, predict, average='macro')
     f1 = f1_score(label, predict, average='macro')
     ap = average_precision_score(label, pred)
-    print("Epoch: {} | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(epoch+1, accuracy, auc, recall, f1, ap))
+    print("Epoch: {} | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(epoch+1, accuracy, auc, recall, f1, ap))()
 
     
