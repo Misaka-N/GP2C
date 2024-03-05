@@ -1,5 +1,5 @@
 data/
-pretrain_gnn/
+pretrained_gnn/
 
 # cache files
 models/__pycache__

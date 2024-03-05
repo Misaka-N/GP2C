@@ -12,9 +12,10 @@ def set_random(seed, cuda):
 
 
 def cosine_similarity(x1, x2):
-    x1_norm = x1.norm(p=2, dim=1, keepdim=True)
-    x2_norm = x2.norm(p=2, dim=1, keepdim=True)
+    x1_norm = torch.norm(x1, dim=1, keepdim=True)
+    x2_norm = torch.norm(x2, dim=1, keepdim=True)
     sim_matrix = torch.mm(x1, x2.t()) / (x1_norm * x2_norm.t() + 1e-8)
+
     return sim_matrix
 
 
