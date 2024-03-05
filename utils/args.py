@@ -18,7 +18,7 @@ def get_pretrain_args():
     parser.add_argument("--input_dim", type=int, default=128, help="input dimension")
     parser.add_argument("--hidden_dim", type=int, default=256, help="hidden dimension")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension(also dimension of projector and answering fuction)")
-    parser.add_argument("--path", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GIN_0.pth", help="model saving path")
+    parser.add_argument("--path", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GIN_1.pth", help="model saving path")
 
     # Bridge nodes
     parser.add_argument("--node_num", type=int, default=16, help="num of bridge nodes")
@@ -28,7 +28,7 @@ def get_pretrain_args():
 
     # Pretrain Process
     parser.add_argument("--batch_size", type=int, default=8, help="subgraph num of one batch")
-    parser.add_argument("--lr", type=float, default=0.01, help="learning rate for pretraining")
+    parser.add_argument("--lr", type=float, default=0.0025, help="learning rate for pretraining")
     parser.add_argument("--decay", type=float, default=0.0001, help="weight decay for pretraining")
     parser.add_argument("--max_epoches", type=int, default=200, help="max epoches for pretraining")
     parser.add_argument("--loss_bias", type=float, default=10.0, help="extra loss that will be added to contrastive loss calculation")
@@ -60,12 +60,12 @@ def get_downstream_args():
     parser.add_argument("--prompt_num", type=int, default=10, help="prompt num for each component")
     parser.add_argument("--prompt_dim", type=int, default=256, help="dimension of prompt, should be same as hidden_dim")
     parser.add_argument("--prompt_layers", type=int, default=-1, help="-1 is for shallow prompt, other >0 values are for deep prompt(should be same as gnn_layer)")
-    parser.add_argument("--prompt_path", type=str, default='prompt_pool_0.pth', help="prompt pool saving path")
-    parser.add_argument("--answering_path", type=str, default='answering_0.pth', help="answering function saving path")
+    parser.add_argument("--prompt_path", type=str, default='downstream_model/prompt_pool_0.pth', help="prompt pool saving path")
+    parser.add_argument("--answering_path", type=str, default='downstream_model/answering_0.pth', help="answering function saving path")
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension of gnn")
 
     # Downstream Tasks
-    parser.add_argument("--lr", type=float, default=0.01, help="learning rate for downstream training")
+    parser.add_argument("--lr", type=float, default=0.0025, help="learning rate for downstream training")
     parser.add_argument("--decay", type=float, default=0.0001, help="weight decay for downstream training")
     parser.add_argument("--max_epoches", type=int, default=200, help="max epoches for downstream training")
 

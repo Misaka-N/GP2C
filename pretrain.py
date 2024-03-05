@@ -227,7 +227,7 @@ if __name__ == "__main__":
     gnn = GIN(num_layers=args.gnn_layer, feat_dim=args.input_dim, hidden_dim=args.hidden_dim, output_dim=args.output_dim)
     model = ContrastiveLearning(GNN=gnn, output_dim=args.output_dim, temperature=args.temperature, loss_bias=args.loss_bias)
     optimizer = optim.Adam(gnn.parameters(), lr=args.lr, weight_decay=args.decay)
-    early_stopper = EarlyStopping(path=args.path, patience=args.patience, min_delta=0)
+    early_stopper = EarlyStopping(path1=args.path, patience=args.patience, min_delta=0)
  
     # start a new wandb run to track this script
     wandb.init(

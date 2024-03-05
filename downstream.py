@@ -152,7 +152,7 @@ if __name__ == "__main__":
                 print("Best Score: ", early_stopper.best_score)
                 break
 
-            if (epoch + 1) % 5 == 0: 
+            if (epoch + 1) % 10 == 0: 
                 # Evaluation
                 gnn.eval()
                 prompt_pool.eval()
@@ -163,15 +163,14 @@ if __name__ == "__main__":
                     summed_prompt = prompt_pool(read_out, args.if_train)
                     predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
                     pre = answering(predict_feat.unsqueeze(0))
-                    pred.append(pre)
+                    pred.append(pre.detach().squeeze())
                     predict.append(pre.argmax(dim=1))
                     label.append(subgraph.y)
-                pred = torch.stack(pred)
                 accuracy = accuracy_score(label, predict)
-                auc = roc_auc_score(label, pred.detach().numpy(), average='macro')
+                auc = roc_auc_score(label, pred, multi_class='ovr')
                 recall = recall_score(label, predict, average='macro')
                 f1 = f1_score(label, predict, average='macro')
-                ap = average_precision_score(label, pred.detach().numpy())
+                ap = average_precision_score(label, pred)
                 wandb.log({"val_accuracy": accuracy, "val_auc": auc, "val_recall": recall, "val_f1": f1})
                 print("Epoch: {} | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(epoch+1, accuracy, auc, recall, f1, ap))
         wandb.finish()
@@ -189,15 +188,15 @@ if __name__ == "__main__":
         summed_prompt = prompt_pool(read_out, args.if_train)
         predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
         pre = answering(predict_feat.unsqueeze(0))
-        pred.append(pre)
+        pred.append(pre.detach().squeeze())
         predict.append(pre.argmax(dim=1))
         label.append(subgraph.y)
-    pred = torch.stack(pred)
+
     accuracy = accuracy_score(label, predict)
-    auc = roc_auc_score(label, pred.detach().numpy(), average='macro')
+    auc = roc_auc_score(label, pred, multi_class='ovr')
     recall = recall_score(label, predict, average='macro')
     f1 = f1_score(label, predict, average='macro')
-    ap = average_precision_score(label, pred.detach().numpy())
+    ap = average_precision_score(label, pred)
     print("Epoch: {} | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(epoch+1, accuracy, auc, recall, f1, ap))
 
     

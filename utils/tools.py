@@ -45,6 +45,7 @@ class EarlyStopping:
                 self.early_stop = True
         else:
             self.best_score = val_loss
+            self.counter = 0
             if hasattr(model, 'GNN'):
                 torch.save(model.GNN, self.path1)
             else:
