@@ -196,9 +196,9 @@ if __name__ == "__main__":
         read_out = subgraph.x.mean(dim=0)
         summed_prompt = prompt_pool(read_out, args.if_train)
         predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
+        pre = answering(predict_feat.unsqueeze(0))
         predict.append(pre.argmax(dim=1))
         pre = F.softmax(pre, dim=-1)
-        pre = answering(predict_feat.unsqueeze(0))
         pred.append(pre.detach().squeeze())
         label.append(subgraph.y)
 
