@@ -5,6 +5,7 @@ import random
 from tqdm import tqdm
 from models.GIN import GIN
 import torch.optim as optim
+import torch.nn.functional as F
 from models.prompt import PromptComponent
 from collections import defaultdict
 from utils.args import get_downstream_args
@@ -91,9 +92,15 @@ if __name__ == "__main__":
         prompt_pool = torch.load(args.prompt_path)
     if args.if_train:
         prompt_pool.new_task_init()
-        answering = torch.nn.Sequential(
-            torch.nn.Linear(args.output_dim, num_classes),
-            torch.nn.Softmax(dim=1))
+        answering = nn.Sequential(
+            nn.Linear(args.output_dim, args.output_dim),
+            nn.PReLU(),
+            nn.Linear(args.output_dim, num_classes),
+            nn.PReLU())
+        for _, layer in enumerate(answering):
+            if isinstance(layer, nn.Linear):
+                nn.init.normal_(layer.weight, mean=0.0, std=1.0)
+                nn.init.normal_(layer.bias, mean=0.0, std=1.0)
     elif not args.if_train and args.new_pool:
         raise ValueError("Can't create a new pool but not train.")
     else:
@@ -128,13 +135,12 @@ if __name__ == "__main__":
             for _, subgraph in enumerate(train_set):
                 read_out = subgraph.x.mean(dim=0)
                 summed_prompt = prompt_pool(read_out, args.if_train)
-                print(summed_prompt[0].grad)
-                quit()
+                summed_prompt.retain_grad()
                 predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
                 pre = answering(predict_feat.unsqueeze(0))
 
                 train_loss = loss_fn(cross_loss, pre, subgraph.y)
-                running_loss += train_loss.item()
+                running_loss += train_loss
 
                 optimizer.zero_grad()
                 train_loss.backward()
@@ -146,9 +152,9 @@ if __name__ == "__main__":
             running_loss /= len(train_set)
             accuracy = accuracy_score(label, predict)
             wandb.log({"train_loss": running_loss, "train_accuracy": accuracy})
-            print("Epoch: {} | Loss: {:.4f}".format(epoch, running_loss))
+            print("Epoch: {} | Loss: {:.4f} | ACC: {:.4f}".format(epoch, running_loss, accuracy))
 
-            early_stopper((prompt_pool,answering), running_loss)
+            early_stopper((prompt_pool, answering), running_loss.item())
             if early_stopper.early_stop:
                 print("Stopping training...")
                 print("Best Score: ", early_stopper.best_score)
@@ -165,8 +171,9 @@ if __name__ == "__main__":
                     summed_prompt = prompt_pool(read_out, args.if_train)
                     predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
                     pre = answering(predict_feat.unsqueeze(0))
-                    pred.append(pre.detach().squeeze())
                     predict.append(pre.argmax(dim=1))
+                    pre = F.softmax(pre, dim=-1)
+                    pred.append(pre.detach().squeeze())
                     label.append(subgraph.y)
                 accuracy = accuracy_score(label, predict)
                 auc = roc_auc_score(label, pred, multi_class='ovr')
@@ -189,9 +196,10 @@ if __name__ == "__main__":
         read_out = subgraph.x.mean(dim=0)
         summed_prompt = prompt_pool(read_out, args.if_train)
         predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
+        predict.append(pre.argmax(dim=1))
+        pre = F.softmax(pre, dim=-1)
         pre = answering(predict_feat.unsqueeze(0))
         pred.append(pre.detach().squeeze())
-        predict.append(pre.argmax(dim=1))
         label.append(subgraph.y)
 
     accuracy = accuracy_score(label, predict)

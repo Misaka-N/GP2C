@@ -98,9 +98,9 @@ class PromptComponent(nn.Module):
 
         if self.layers == -1:
             for prompt_component in weight_prompt:
-                summed_prompt += prompt_component['prompt']
+                summed_prompt = torch.add(summed_prompt, prompt_component['prompt'])
         else:
-            updated_params = [nn.Parameter(summed_prompt[i] + p['prompt']) for i, p in enumerate(weight_prompt)]
+            updated_params = [nn.Parameter(torch.add(summed_prompt[i] + p['prompt'])) for i, p in enumerate(weight_prompt)]
             summed_prompt = nn.ParameterList(updated_params)
 
         return summed_prompt

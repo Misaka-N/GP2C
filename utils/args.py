@@ -49,7 +49,7 @@ def get_downstream_args():
     parser.add_argument("--task", type=str, default='node', help="if node level tasks")
     parser.add_argument("--dataset", type=str, default="Amazon_Photo",
                         help="Datasets used for downstream tasks")
-    parser.add_argument("--pretrained_model", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GIN_0.pth", help="pretrained model path")
+    parser.add_argument("--pretrained_model", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GIN_1.pth", help="pretrained model path")
     parser.add_argument("--shot", type=int, default=100, help="shot for few-shot learning")
     parser.add_argument("--k_hop", type=int, default=2, help="k-hop subgraph")
     parser.add_argument("--input_dim", type=int, default=128, help="input dimension")
@@ -65,7 +65,7 @@ def get_downstream_args():
     parser.add_argument("--output_dim", type=int, default=32, help="output dimension of gnn")
 
     # Downstream Tasks
-    parser.add_argument("--lr", type=float, default=0.0025, help="learning rate for downstream training")
+    parser.add_argument("--lr", type=float, default=0.02, help="learning rate for downstream training")
     parser.add_argument("--decay", type=float, default=0.0001, help="weight decay for downstream training")
     parser.add_argument("--max_epoches", type=int, default=200, help="max epoches for downstream training")
 
