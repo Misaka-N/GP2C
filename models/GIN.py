@@ -58,5 +58,5 @@ class GIN(torch.nn.Module):
         x = global_add_pool(x, batch)
         x = self.fc(x)
         x = self.norm[-1](x)
-        
+
         return x

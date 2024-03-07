@@ -14,12 +14,12 @@ from torch import nn, optim
 import torch.nn.functional as F
 
 
-def subgraph_extraction(graph, radio):
+def subgraph_extraction(graph, ratio):
     edge_index = graph.edge_index.numpy()
     degrees = np.bincount(edge_index[0], minlength=graph.x.size(0)) + np.bincount(edge_index[1], minlength=graph.x.size(0))
     
     node_num = graph.x.size(0)
-    subgraph_node_num = int(node_num * radio)
+    subgraph_node_num = int(node_num * ratio)
     
     idx_sorted_by_degree = torch.argsort(torch.tensor(degrees, dtype=torch.float), descending=True)
     idx_subgraph = idx_sorted_by_degree[:subgraph_node_num]
@@ -39,7 +39,7 @@ def subgraph_extraction(graph, radio):
     return subgraph
 
 
-def anonymization(graph, radio):
+def anonymization(graph, ratio):
     node_num, _ = graph.x.size()
     idx_shuffle = np.random.permutation(node_num)
     graph.x = graph.x[idx_shuffle]
@@ -47,10 +47,10 @@ def anonymization(graph, radio):
     return graph
 
 
-def node_dropping(graph, radio):
+def node_dropping(graph, ratio):
     node_num, _ = graph.x.size()
     _, edge_num = graph.edge_index.size()
-    drop_num = int(node_num * radio)
+    drop_num = int(node_num * ratio)
 
     idx_perm = np.random.permutation(node_num) # Randomly arrange node index
 
@@ -70,9 +70,9 @@ def node_dropping(graph, radio):
     return graph
 
 
-def edge_perturbation(graph, radio):
+def edge_perturbation(graph, ratio):
     _, edge_num = graph.edge_index.size()
-    perturb_num = int(edge_num * radio)
+    perturb_num = int(edge_num * ratio)
 
     idx_delete = np.random.choice(edge_num, (edge_num - perturb_num), replace=False)
     graph.edge_index = graph.edge_index[:, idx_delete]
@@ -80,9 +80,9 @@ def edge_perturbation(graph, radio):
     return graph
 
 
-def attribute_masking(graph, radio):
+def attribute_masking(graph, ratio):
     node_num, _ = graph.x.size()
-    mask_num = int(node_num * radio)
+    mask_num = int(node_num * ratio)
     
     idx_perm = np.random.permutation(node_num)[:mask_num]
     mask = torch.ones_like(graph.x)
@@ -93,16 +93,16 @@ def attribute_masking(graph, radio):
     return graph
 
 
-def graph_views(graph, aug, radio):
+def graph_views(graph, aug, ratio):
     if aug == 'Subgraph':
-        aug_graph = subgraph_extraction(graph, radio)
+        aug_graph = subgraph_extraction(graph, ratio)
     elif aug == 'Anonymize':
-        aug_graph = anonymization(graph, radio)
+        aug_graph = anonymization(graph, ratio)
     elif aug == 'Drop':
-        aug_graph = node_dropping(graph, radio)
+        aug_graph = node_dropping(graph, ratio)
     elif aug == 'Perturb':
-        aug_graph = edge_perturbation(graph, radio)
+        aug_graph = edge_perturbation(graph, ratio)
     elif aug == 'Mask':
-        aug_graph = attribute_masking(graph, radio)
+        aug_graph = attribute_masking(graph, ratio)
 
     return aug_graph
