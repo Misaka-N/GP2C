@@ -160,7 +160,6 @@ if __name__ == "__main__":
             for _, subgraph in enumerate(train_set):
                 read_out = subgraph.x.mean(dim=0)
                 summed_prompt = prompt_pool(read_out, args.if_train)
-                summed_prompt.retain_grad()
                 predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
                 pre = answering(predict_feat.unsqueeze(0))
 
@@ -172,9 +171,6 @@ if __name__ == "__main__":
 
             optimizer.zero_grad()
             train_loss.backward()
-            print(prompt_pool.attention[0].grad)
-            print(prompt_pool.keys[0].grad)
-            print(prompt_pool.prompt[0].grad)
             optimizer.step()
                 
             accuracy = accuracy_score(label, predict)

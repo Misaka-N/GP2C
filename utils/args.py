@@ -69,12 +69,12 @@ def get_downstream_args():
     # Downstream Tasks
     parser.add_argument("--lr", type=float, default=0.01, help="learning rate for downstream training")
     parser.add_argument("--decay", type=float, default=1e-4, help="weight decay for downstream training")
-    parser.add_argument("--max_epoches", type=int, default=200, help="max epoches for downstream training")
+    parser.add_argument("--max_epoches", type=int, default=1000, help="max epoches for downstream training")
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
     parser.add_argument("--seed", type=int, default=42, help="random seed")
-    parser.add_argument("--patience", type=int, default=20, help="early stop steps")
+    parser.add_argument("--patience", type=int, default=10, help="early stop steps")
     
     args = parser.parse_args()
     return args
