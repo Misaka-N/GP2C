@@ -56,10 +56,14 @@ def gram_loss(prompt):
     return loss
 
 
-def loss_fn(cross_fn, predict, label):
+def loss_fn(cross_fn, predict, label, prompt):
     cross_loss = cross_fn(predict, label)
-
+    cross_loss += args.ortho_weight * ortho_penalty(prompt)
     return cross_loss
+
+
+def ortho_penalty(t):
+    return ((t @t.T - torch.eye(t.shape[0]).cuda())**2).mean()
 
 
 if __name__ == "__main__":
@@ -167,7 +171,7 @@ if __name__ == "__main__":
                 predict.append(pre.argmax(dim=1))
                 label.append(subgraph.y)
 
-            train_loss = loss_fn(cross_loss, torch.stack(pred).squeeze(1), torch.stack(label).squeeze(1))
+            train_loss = loss_fn(cross_loss, torch.stack(pred).squeeze(1), torch.stack(label).squeeze(1), prompt_pool.prompt[prompt_pool.task_cnt-1])
 
             optimizer.zero_grad()
             train_loss.backward()
