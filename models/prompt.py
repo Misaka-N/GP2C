@@ -12,9 +12,10 @@ class PromptComponent(nn.Module):
         self.prompt_num = prompt_num
         self.prompt_dim = prompt_dim
         self.input_dim = input_dim
-        self.layers = layers # -1 is for shallow prompt, other values are for deep prompt (prompt layers = GNN layers)
-        self.prompt_pool = []
-        # self.if_new = False # whether has a new task need to learn
+
+        self.attention = nn.ParameterList()
+        self.keys = nn.ParameterList()
+        self.prompt = nn.ParameterList()
 
 
     def gram_schmidt(self, prompt):
@@ -30,28 +31,19 @@ class PromptComponent(nn.Module):
             else:
                 basis[i] = torch.zeros_like(w)
         return basis
-
+    
 
     def new_task_init(self):
         self.task_cnt += 1
-        prompt_component = {}
-        prompt_component['attention'] = nn.Parameter(torch.FloatTensor(1), requires_grad=True) # Attention weight
-        prompt_component['key'] = nn.Parameter(torch.randn(self.input_dim), requires_grad=True) # Prompt key
-        norm = prompt_component['key'].norm(p=2)
-        prompt_component['key'] = prompt_component['key'] / (norm + 1e-8)
-        if self.layers != -1:
-            new_prompt = nn.ParameterList()
-            for _ in range(self.layers):
-                prompt_tmp = nn.Parameter(torch.randn(self.prompt_num, self.prompt_dim), requires_grad=True)
-                prompt_tmp = self.gram_schmidt(prompt_tmp)
-                new_prompt.append(prompt_tmp)
-            prompt_component['prompt'] = new_prompt
-            self.prompt_pool.append(prompt_component)
-        else:
-            prompt_tmp = nn.Parameter(torch.randn(self.prompt_num, self.prompt_dim), requires_grad=True)
-            new_prompt = self.gram_schmidt(prompt_tmp)
-            prompt_component['prompt'] = new_prompt
-            self.prompt_pool.append(prompt_component)
+        self.attention.append(nn.Parameter(torch.FloatTensor(1), requires_grad=True)) # Attention weight
+
+        new_key = nn.Parameter(torch.randn(self.input_dim), requires_grad=True) # Prompt key
+        norm = new_key.norm(p=2)
+        self.keys.append(new_key / (norm + 1e-8))
+
+        prompt_tmp = nn.Parameter(torch.randn(self.prompt_num, self.prompt_dim), requires_grad=True)
+        new_prompt = self.gram_schmidt(prompt_tmp)
+        self.prompt.append(new_prompt)
 
 
     def freeze_prompt_params(self, train): 
@@ -59,19 +51,18 @@ class PromptComponent(nn.Module):
             last_id = self.task_cnt - 1 
         else:
             last_id = self.task_cnt
-        for id, prompt_component in enumerate(self.prompt_pool):
+        id = 0
+        for attention, key, prompt in zip(self.attention, self.keys, self.prompt):
             if id < last_id:
-                for param in prompt_component.values():
+                attention.requires_grad = False
+                key.requires_grad = False
+                for param in prompt:
                     if self.layers == -1:
                         param.requires_grad = False
-                    elif isinstance(param, nn.ParameterList):
+                    else:
                         for p in param:
                             p.requires_grad = False
-
-
-    def activate_prompt_attention(self):
-        for _, prompt_component in enumerate(self.prompt_pool):
-            prompt_component['attention'].requires_grad = True
+            id += 1
     
 
     def forward(self, query, train=False):
@@ -79,28 +70,15 @@ class PromptComponent(nn.Module):
 
         # Calculating for similarity weight
         weight_prompt = []
-        for prompt_component in self.prompt_pool:
-            sim = cosine_similarity(query * prompt_component['attention'].unsqueeze(0), prompt_component['key'].unsqueeze(0))
-            if self.layers == -1:
-                updated_prompt = prompt_component['prompt'] * sim
-                prompt_component['prompt'] = nn.Parameter(updated_prompt)
-            else:
-                for i, _ in enumerate(prompt_component['prompt']):
-                    updated_prompt = prompt_component['prompt'][i] * sim
-                    prompt_component['prompt'][i] = nn.Parameter(updated_prompt)
-            weight_prompt.append(prompt_component)
+        for attention, key, prompt in zip(self.attention, self.keys, self.prompt):
+            sim = cosine_similarity(query * attention.unsqueeze(0), key.unsqueeze(0))
+            updated_prompt = prompt * sim
+            weight_prompt.append(updated_prompt)
 
         # Get summed prompt
-        if self.layers == -1:
-            summed_prompt = nn.Parameter(torch.zeros_like(weight_prompt[0]['prompt']), requires_grad=True)
-        else:
-            summed_prompt = nn.ParameterList([nn.Parameter(torch.zeros_like(p), requires_grad=True) for p in weight_prompt[0]['prompt']])
+        summed_prompt = nn.Parameter(torch.zeros_like(self.prompt[0]), requires_grad=True)
 
-        if self.layers == -1:
-            for prompt_component in weight_prompt:
-                summed_prompt = torch.add(summed_prompt, prompt_component['prompt'])
-        else:
-            updated_params = [nn.Parameter(torch.add(summed_prompt[i] + p['prompt'])) for i, p in enumerate(weight_prompt)]
-            summed_prompt = nn.ParameterList(updated_params)
+        for prompt in weight_prompt:
+            summed_prompt = torch.add(summed_prompt, prompt)
 
         return summed_prompt

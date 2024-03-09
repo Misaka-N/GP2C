@@ -14,7 +14,7 @@ class GCN(torch.nn.Module):
             self.conv_layers = torch.nn.ModuleList([GCNConv(input_dim, hid_dim), GCNConv(hid_dim, out_dim)])
         else:
             layers = [GCNConv(input_dim, hid_dim)]
-            for i in range(gcn_layer_num - 2):
+            for _ in range(gcn_layer_num - 2):
                 layers.append(GCNConv(hid_dim, hid_dim))
             layers.append(GCNConv(hid_dim, out_dim))
             self.conv_layers = torch.nn.ModuleList(layers)
@@ -24,13 +24,33 @@ class GCN(torch.nn.Module):
         else:
             self.pool = pool
 
-    def forward(self, x, edge_index, batch):
-        for conv in self.conv_layers[0:-1]:
-            x = conv(x, edge_index)
-            x = act(x)
-            x = F.dropout(x, training=self.training)
+    def forward(self, x, edge_index, batch, prompt = None, layers=-1):
+        if prompt != None:
+            if layers == -1: # shallow prompt
+                for conv in self.conv_layers[0:-1]:
+                    x = conv(x, edge_index)
+                    x = act(x)
+                    x = F.dropout(x, training=self.training)
 
-        node_emb = self.conv_layers[-1](x, edge_index)
+                node_emb = self.conv_layers[-1](x, edge_index)
+                sim_matrix = torch.matmul(node_emb, prompt.t())
+                node_emb = node_emb + torch.matmul(sim_matrix, prompt)
+
+            else: # deep prompt
+                pass
+                # for conv, norm, prompt_layer in zip(self.convs, self.norm, prompt):
+                #     x = conv(x, edge_index)
+                #     sim_matrix = torch.matmul(x, prompt_layer.t())
+                #     x = x + torch.matmul(sim_matrix, prompt_layer)
+                #     x = torch.relu(x)
+                #     x = norm(x)
+        else:
+            for conv in self.conv_layers[0:-1]:
+                x = conv(x, edge_index)
+                x = act(x)
+                x = F.dropout(x, training=self.training)
+
+                node_emb = self.conv_layers[-1](x, edge_index)
         graph_emb = self.pool(node_emb, batch.long())
         return graph_emb
 
