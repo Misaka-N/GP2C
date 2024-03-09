@@ -70,6 +70,7 @@ def get_downstream_args():
     parser.add_argument("--lr", type=float, default=0.01, help="learning rate for downstream training")
     parser.add_argument("--decay", type=float, default=1e-4, help="weight decay for downstream training")
     parser.add_argument("--max_epoches", type=int, default=200, help="max epoches for downstream training")
+    parser.add_argument("--ortho_weight", type=float, default=0.1, help="weight for ortho regularization")
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
