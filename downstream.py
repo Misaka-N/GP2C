@@ -2,6 +2,7 @@ import wandb
 import torch
 import numpy as np
 import torch.nn as nn
+import networkx as nx
 import random
 from tqdm import tqdm
 from models.GIN import GIN
@@ -15,34 +16,26 @@ from utils.tools import set_random
 from utils.dataloader import pretrain_dataloader
 from torch_geometric.nn import global_mean_pool
 from torch_geometric.data import Data
-from torch_geometric.utils import k_hop_subgraph, degree, subgraph
+from torch_geometric.utils import k_hop_subgraph, degree, subgraph, from_networkx, to_networkx
 from torch_geometric.loader import DataLoader
 from utils.tools import EarlyStopping
 from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, recall_score, average_precision_score
 
-import networkx as nx
-from torch_geometric.utils import from_networkx, to_networkx
 
-def get_induced_graph(data, num_classes, shot, k, min_node_num=100, max_node_num=300):
+def get_induced_graph(data, num_classes, shot, k, max_node_num=200):
     node_idx = range(data.x.size(0))
     edge_index = data.edge_index
     class_to_subgraphs = {i: [] for i in range(num_classes)}
 
-    # 计算每个结点的PageRank中心性
     pr = nx.pagerank(to_networkx(data), alpha=0.85)
 
     for node, label in tqdm(zip(node_idx, data.y), total=data.x.size(0)):
-        subgraph_node_idx = []
-        current_hop = k
-    
-        while len(subgraph_node_idx) < min_node_num and current_hop < 5:
-            subgraph_node_idx, _, _, _ = k_hop_subgraph(node, current_hop, edge_index, relabel_nodes=True)
-            current_hop += 1
+        subgraph_node_idx, subgraph_edge_idx, _, _ = k_hop_subgraph(node, k, edge_index, relabel_nodes=True)
 
-        # 找到这个子图中PageRank最大的max_node_num个结点保留下来
-        subgraph_node_idx = sorted(subgraph_node_idx, key=lambda x: pr[x.item()], reverse=True)[:max_node_num]
-        subgraph_node_idx = torch.tensor(subgraph_node_idx)
-        subgraph_edge_idx, _ = subgraph(subgraph_node_idx, edge_index, relabel_nodes=True)
+        if len(subgraph_node_idx) > max_node_num:
+            subgraph_node_idx = sorted(subgraph_node_idx, key=lambda x: pr[x.item()], reverse=True)[:max_node_num]
+            subgraph_node_idx = torch.tensor(subgraph_node_idx)
+            subgraph_edge_idx, _ = subgraph(subgraph_node_idx, edge_index, relabel_nodes=True)
         class_to_subgraphs[label.item()].append(Data(x=data.x[subgraph_node_idx], edge_index=subgraph_edge_idx, y=label))
     
     train_list, test_list = [], []
@@ -53,7 +46,7 @@ def get_induced_graph(data, num_classes, shot, k, min_node_num=100, max_node_num
             raise ValueError("Fail to get {} shot. The subgraph num is {}".format({shot, subgraphs.shape[0]}))
 
         train_list.extend(subgraphs[:shot])
-        test_list.extend(subgraphs[shot: 9*shot])
+        test_list.extend(subgraphs[shot: ])
 
     random.shuffle(train_list)
     random.shuffle(test_list)
@@ -104,7 +97,7 @@ if __name__ == "__main__":
         print("---Downloading dataset: " + args.dataset + "---")
         data, dataname, num_classes = pretrain_dataloader(input_dim=args.input_dim, dataset=args.dataset)
         print("---Getting induced graphs: " + args.dataset + "---")
-        train_set, val_set = get_induced_graph(data, num_classes, args.shot, 2)
+        train_set, val_set = get_induced_graph(data, num_classes, args.shot, args.k_hop, args.k_hop_nodes)
     else:
         pass
 
