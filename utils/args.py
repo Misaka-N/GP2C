@@ -49,7 +49,7 @@ def get_downstream_args():
     parser.add_argument("--dataset", type=str, default="Amazon_Computer",help="Datasets used for downstream tasks")
     parser.add_argument("--subgraph_node_num", type=int, default="200",help="node num for each subgraph generated from dataset")
     parser.add_argument("--pretrained_model", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GCN_2.pth", help="pretrained model path")
-    parser.add_argument("--shot", type=int, default=100, help="shot for few-shot learning")
+    parser.add_argument("--shot", type=int, default=1, help="shot for few-shot learning")
     parser.add_argument("--k_hop", type=int, default=2, help="k-hop subgraph")
     parser.add_argument("--k_hop_nodes", type=int, default=200, help="max nodes num for k-hop subgraph")
     parser.add_argument("--input_dim", type=int, default=100, help="input dimension")

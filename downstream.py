@@ -38,7 +38,7 @@ def get_induced_graph(data, num_classes, shot, k):
             raise ValueError("Fail to get {} shot. The subgraph num is {}".format({shot, subgraphs.shape[0]}))
 
         train_list.extend(subgraphs[:shot])
-        test_list.extend(subgraphs[shot: 2*shot])
+        test_list.extend(subgraphs[shot: 9*shot])
 
     random.shuffle(train_list)
     random.shuffle(test_list)
