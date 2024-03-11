@@ -13,6 +13,7 @@ from collections import defaultdict
 from utils.args import get_downstream_args
 from utils.tools import set_random
 from utils.dataloader import pretrain_dataloader
+from torch_geometric.nn import global_mean_pool
 from torch_geometric.data import Data
 from torch_geometric.utils import k_hop_subgraph, degree, subgraph
 from torch_geometric.loader import DataLoader
@@ -37,7 +38,7 @@ def get_induced_graph(data, num_classes, shot, k):
             raise ValueError("Fail to get {} shot. The subgraph num is {}".format({shot, subgraphs.shape[0]}))
 
         train_list.extend(subgraphs[:shot])
-        test_list.extend(subgraphs[shot:])
+        test_list.extend(subgraphs[shot: 2*shot])
 
     random.shuffle(train_list)
     random.shuffle(test_list)
@@ -58,12 +59,13 @@ def gram_loss(prompt):
 
 def loss_fn(cross_fn, predict, label, prompt):
     cross_loss = cross_fn(predict, label)
-    cross_loss += args.ortho_weight * ortho_penalty(prompt)
+    if prompt != None:
+        cross_loss += args.ortho_weight * ortho_penalty(prompt)
     return cross_loss
 
 
 def ortho_penalty(t):
-    return ((t @t.T - torch.eye(t.shape[0]).cuda())**2).mean()
+    return ((t @t.T - torch.eye(t.shape[0]))**2).mean()
 
 
 if __name__ == "__main__":
@@ -134,21 +136,28 @@ if __name__ == "__main__":
         for epoch in range(args.max_epoches):
             gnn.eval()
 
-            # tune answering function
+            # # tune answering function
             # prompt_pool.eval()
             # answering.train()
             # predict, label, pred = [], [], []
             # for _, subgraph in enumerate(train_set):
-            #     read_out = subgraph.x.mean(dim=0)
+            #     predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch)
+
+            #     read_out = predict_feat.mean(dim=0)
             #     summed_prompt = prompt_pool(read_out, args.if_train)
-            #     predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
-            #     pre = answering(predict_feat.unsqueeze(0))
+
+            #     sim_matrix = torch.matmul(predict_feat, summed_prompt.t())
+            #     node_emb = predict_feat + torch.matmul(sim_matrix, summed_prompt)
+
+            #     graph_emb = global_mean_pool(node_emb, subgraph.batch.long())
+                
+            #     pre = answering(graph_emb)
 
             #     pred.append(pre)
             #     predict.append(pre.argmax(dim=1))
             #     label.append(subgraph.y)
 
-            # train_loss = loss_fn(cross_loss, torch.stack(pred).squeeze(1), torch.stack(label).squeeze(1))
+            # train_loss = loss_fn(cross_loss, torch.stack(pred).squeeze(1), torch.stack(label).squeeze(1), None)
 
             # optimizer_ans.zero_grad()
             # train_loss.backward()
@@ -162,16 +171,23 @@ if __name__ == "__main__":
             answering.train()
             predict, label, pred = [], [], []
             for _, subgraph in enumerate(train_set):
-                read_out = subgraph.x.mean(dim=0)
+                predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch)
+
+                read_out = predict_feat.mean(dim=0)
                 summed_prompt = prompt_pool(read_out, args.if_train)
-                predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
-                pre = answering(predict_feat.unsqueeze(0))
+
+                sim_matrix = torch.matmul(predict_feat, summed_prompt.t())
+                node_emb = predict_feat * torch.matmul(sim_matrix, summed_prompt)
+
+                graph_emb = global_mean_pool(node_emb, subgraph.batch.long())
+                
+                pre = answering(graph_emb)
 
                 pred.append(pre)
                 predict.append(pre.argmax(dim=1))
                 label.append(subgraph.y)
 
-            train_loss = loss_fn(cross_loss, torch.stack(pred).squeeze(1), torch.stack(label).squeeze(1), prompt_pool.prompt[prompt_pool.task_cnt-1])
+            train_loss = loss_fn(cross_loss, torch.stack(pred).squeeze(1), torch.stack(label).squeeze(1), None)
 
             optimizer.zero_grad()
             train_loss.backward()
@@ -184,7 +200,7 @@ if __name__ == "__main__":
             early_stopper((prompt_pool, answering), train_loss.item())
             if early_stopper.early_stop:
                 print("Stopping training...")
-                print("Best Score: ", early_stopper.best_score)
+                print("Best Score: {:.4f}".format(early_stopper.best_score))
                 break
 
             if (epoch + 1) % 10 == 0: 
@@ -194,10 +210,18 @@ if __name__ == "__main__":
                 answering.eval()
                 predict, pred, label = [], [], []
                 for _, subgraph in tqdm(enumerate(val_set), desc="Evaluating Process"):
-                    read_out = subgraph.x.mean(dim=0)
+                    predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch)
+
+                    read_out = predict_feat.mean(dim=0)
                     summed_prompt = prompt_pool(read_out, args.if_train)
-                    predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
-                    pre = answering(predict_feat.unsqueeze(0))
+
+                    sim_matrix = torch.matmul(predict_feat, summed_prompt.t())
+                    node_emb = predict_feat * torch.matmul(sim_matrix, summed_prompt)
+
+                    graph_emb = global_mean_pool(node_emb, subgraph.batch.long())
+                    
+                    pre = answering(graph_emb)
+
                     predict.append(pre.argmax(dim=1))
                     pre = F.softmax(pre, dim=-1)
                     pred.append(pre.detach().squeeze())
@@ -220,10 +244,18 @@ if __name__ == "__main__":
     answering.eval()
     predict, pred, label = [], [], []
     for _, subgraph in tqdm(enumerate(val_set), desc="Evaluating Process"):
-        read_out = subgraph.x.mean(dim=0)
+        predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch)
+
+        read_out = predict_feat.mean(dim=0)
         summed_prompt = prompt_pool(read_out, args.if_train)
-        predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch, summed_prompt, args.prompt_layers).mean(dim=0)
-        pre = answering(predict_feat.unsqueeze(0))
+
+        sim_matrix = torch.matmul(predict_feat, summed_prompt.t())
+        node_emb = predict_feat * torch.matmul(sim_matrix, summed_prompt)
+
+        graph_emb = global_mean_pool(node_emb, subgraph.batch.long())
+        
+        pre = answering(graph_emb)
+
         predict.append(pre.argmax(dim=1))
         pre = F.softmax(pre, dim=-1)
         pred.append(pre.detach().squeeze())
@@ -234,6 +266,6 @@ if __name__ == "__main__":
     recall = recall_score(label, predict, average='macro')
     f1 = f1_score(label, predict, average='macro')
     ap = average_precision_score(label, pred)
-    print("Epoch: {} | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(epoch+1, accuracy, auc, recall, f1, ap))
+    print("Final: | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(accuracy, auc, recall, f1, ap))
 
     

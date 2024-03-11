@@ -51,6 +51,7 @@ def get_downstream_args():
     parser.add_argument("--pretrained_model", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GCN_2.pth", help="pretrained model path")
     parser.add_argument("--shot", type=int, default=100, help="shot for few-shot learning")
     parser.add_argument("--k_hop", type=int, default=2, help="k-hop subgraph")
+    parser.add_argument("--k_hop_nodes", type=int, default=200, help="max nodes num for k-hop subgraph")
     parser.add_argument("--input_dim", type=int, default=100, help="input dimension")
     parser.add_argument("--gnn_layer", type=int, default=2, help="layer num for gnn")
     parser.add_argument("--mlp_layer", type=int, default=2, help="layer num for mlp")
@@ -60,7 +61,7 @@ def get_downstream_args():
     # Prompt
     parser.add_argument("--new_pool", type=int, default=1, help="whether needs a new prompt pool, 1 is for 'Yes', and 0 is for 'No'")
     parser.add_argument("--if_train", type=int, default=1, help="0 is for freeze prompt pool, 1 is for activate the last component.")
-    parser.add_argument("--prompt_num", type=int, default=10, help="prompt num for each component")
+    parser.add_argument("--prompt_num", type=int, default=16, help="prompt num for each component")
     parser.add_argument("--prompt_dim", type=int, default=100, help="dimension of prompt, should be same as hidden_dim")
     parser.add_argument("--prompt_layers", type=int, default=-1, help="-1 is for shallow prompt, other >0 values are for deep prompt(should be same as gnn_layer)")
     parser.add_argument("--prompt_path", type=str, default='downstream_model/prompt_pool_0.pth', help="prompt pool saving path")
@@ -70,7 +71,7 @@ def get_downstream_args():
     parser.add_argument("--lr", type=float, default=0.01, help="learning rate for downstream training")
     parser.add_argument("--decay", type=float, default=1e-4, help="weight decay for downstream training")
     parser.add_argument("--max_epoches", type=int, default=1000, help="max epoches for downstream training")
-    parser.add_argument("--ortho_weight", type=float, default=0.1, help="weight for ortho regularization")
+    parser.add_argument("--ortho_weight", type=float, default=1, help="weight for ortho regularization")
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")

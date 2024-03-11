@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, global_mean_pool
+from torch_geometric.nn import GCNConv
 
 
 class GCN(torch.nn.Module):
@@ -19,40 +19,16 @@ class GCN(torch.nn.Module):
             layers.append(GCNConv(hid_dim, out_dim))
             self.conv_layers = torch.nn.ModuleList(layers)
 
-        if pool is None:
-            self.pool = global_mean_pool
-        else:
-            self.pool = pool
 
-    def forward(self, x, edge_index, batch, prompt = None, layers=-1):
-        if prompt != None:
-            if layers == -1: # shallow prompt
-                for conv in self.conv_layers[0:-1]:
-                    x = conv(x, edge_index)
-                    x = act(x)
-                    x = F.dropout(x, training=self.training)
+    def forward(self, x, edge_index, batch):
+        for conv in self.conv_layers[0:-1]:
+            x = conv(x, edge_index)
+            x = act(x)
+            x = F.dropout(x, training=self.training)
 
-                node_emb = self.conv_layers[-1](x, edge_index)
-                sim_matrix = torch.matmul(node_emb, prompt.t())
-                node_emb = node_emb + torch.matmul(sim_matrix, prompt)
+        node_emb = self.conv_layers[-1](x, edge_index)
 
-            else: # deep prompt
-                pass
-                # for conv, norm, prompt_layer in zip(self.convs, self.norm, prompt):
-                #     x = conv(x, edge_index)
-                #     sim_matrix = torch.matmul(x, prompt_layer.t())
-                #     x = x + torch.matmul(sim_matrix, prompt_layer)
-                #     x = torch.relu(x)
-                #     x = norm(x)
-        else:
-            for conv in self.conv_layers[0:-1]:
-                x = conv(x, edge_index)
-                x = act(x)
-                x = F.dropout(x, training=self.training)
-
-                node_emb = self.conv_layers[-1](x, edge_index)
-        graph_emb = self.pool(node_emb, batch.long())
-        return graph_emb
+        return node_emb
 
 
 def act(x=None, act_type='leakyrelu'):

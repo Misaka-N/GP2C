@@ -35,7 +35,7 @@ class PromptComponent(nn.Module):
 
     def new_task_init(self):
         self.task_cnt += 1
-        self.attention.append(nn.Parameter(torch.FloatTensor(1), requires_grad=True)) # Attention weight
+        self.attention.append(nn.Parameter(torch.randn(self.input_dim), requires_grad=True)) # Attention weight
 
         new_key = nn.Parameter(torch.randn(self.input_dim), requires_grad=True) # Prompt key
         norm = new_key.norm(p=2)
