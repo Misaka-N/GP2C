@@ -20,15 +20,30 @@ from torch_geometric.loader import DataLoader
 from utils.tools import EarlyStopping
 from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, recall_score, average_precision_score
 
+import networkx as nx
+from torch_geometric.utils import from_networkx, to_networkx
 
-def get_induced_graph(data, num_classes, shot, k):
+def get_induced_graph(data, num_classes, shot, k, min_node_num=100, max_node_num=300):
     node_idx = range(data.x.size(0))
     edge_index = data.edge_index
     class_to_subgraphs = {i: [] for i in range(num_classes)}
-    
+
+    # 计算每个结点的PageRank中心性
+    pr = nx.pagerank(to_networkx(data), alpha=0.85)
+
     for node, label in tqdm(zip(node_idx, data.y), total=data.x.size(0)):
-        subgraph_node_idx, subgraph_edge_index, _, _ = k_hop_subgraph(node, 1, edge_index, relabel_nodes=True)
-        class_to_subgraphs[label.item()].append(Data(x=data.x[subgraph_node_idx], edge_index=subgraph_edge_index, y=label))
+        subgraph_node_idx = []
+        current_hop = k
+    
+        while len(subgraph_node_idx) < min_node_num and current_hop < 5:
+            subgraph_node_idx, _, _, _ = k_hop_subgraph(node, current_hop, edge_index, relabel_nodes=True)
+            current_hop += 1
+
+        # 找到这个子图中PageRank最大的max_node_num个结点保留下来
+        subgraph_node_idx = sorted(subgraph_node_idx, key=lambda x: pr[x.item()], reverse=True)[:max_node_num]
+        subgraph_node_idx = torch.tensor(subgraph_node_idx)
+        subgraph_edge_idx, _ = subgraph(subgraph_node_idx, edge_index, relabel_nodes=True)
+        class_to_subgraphs[label.item()].append(Data(x=data.x[subgraph_node_idx], edge_index=subgraph_edge_idx, y=label))
     
     train_list, test_list = [], []
 
@@ -89,7 +104,7 @@ if __name__ == "__main__":
         print("---Downloading dataset: " + args.dataset + "---")
         data, dataname, num_classes = pretrain_dataloader(input_dim=args.input_dim, dataset=args.dataset)
         print("---Getting induced graphs: " + args.dataset + "---")
-        train_set, val_set = get_induced_graph(data, num_classes, args.shot, args.k_hop)
+        train_set, val_set = get_induced_graph(data, num_classes, args.shot, 2)
     else:
         pass
 
