@@ -9,8 +9,8 @@ def get_pretrain_args():
                         help="Datasets used for pretrain")
     parser.add_argument("--subgraphs", type=int, default=256, help="subgraph num for each dataset")
     parser.add_argument("--temperature", type=float, default=0.1, help="temperature for similarity calculation")
-    parser.add_argument("--augment", type=str, nargs='+', default=["Subgraph", "Drop"], help="Augmentation for pretraining(Only support two methods)")
-    parser.add_argument("--aug_ratio", type=float, nargs='+', default=[0.7, 0.3], help="Augmentation ratio")
+    parser.add_argument("--augment", type=str, nargs='+', default=["Subgraph", "Subgraph"], help="Augmentation for pretraining(Only support two methods)")
+    parser.add_argument("--aug_ratio", type=float, nargs='+', default=[0.8, 0.8], help="Augmentation ratio")
 
     # Pretrained model
     parser.add_argument("--gnn_layer", type=int, default=2, help="layer num for gnn")
@@ -18,23 +18,23 @@ def get_pretrain_args():
     parser.add_argument("--input_dim", type=int, default=100, help="input dimension")
     parser.add_argument("--hidden_dim", type=int, default=100, help="hidden dimension")
     parser.add_argument("--output_dim", type=int, default=100, help="output dimension(also dimension of projector and answering fuction)")
-    parser.add_argument("--path", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GCN_2.pth", help="model saving path")
+    parser.add_argument("--path", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GCN_0.pth", help="model saving path")
 
     # Bridge nodes
     parser.add_argument("--node_num", type=int, default=16, help="num of bridge nodes")
     parser.add_argument("--node_dim", type=int, default=100, help="feature dimension of bridge nodes, should be same as input dimension of subgraph nodes")
-    parser.add_argument("--threshold", type=float, default=0.1, help="threshold for connecting nodes")
+    parser.add_argument("--threshold", type=float, default=0.15, help="threshold for connecting nodes")
 
     # Pretrain Process
     parser.add_argument("--batch_size", type=int, default=8, help="subgraph num of one batch")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate for pretraining")
     parser.add_argument("--decay", type=float, default=0.0001, help="weight decay for pretraining")
     parser.add_argument("--max_epoches", type=int, default=300, help="max epoches for pretraining")
-    parser.add_argument("--loss_bias", type=float, default=10.0, help="extra loss that will be added to contrastive loss calculation")
+    parser.add_argument("--loss_bias", type=float, default=0.0, help="extra loss that will be added to contrastive loss calculation")
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
-    parser.add_argument("--seed", type=int, default=42, help="random seed")
+    parser.add_argument("--seed", type=int, default=1, help="random seed")
     parser.add_argument("--patience", type=int, default=10, help="early stop steps")
     
     args = parser.parse_args()
@@ -48,9 +48,9 @@ def get_downstream_args():
     parser.add_argument("--task", type=str, default='node', help="if node level tasks")
     parser.add_argument("--dataset", type=str, default="Amazon_Computer",help="Datasets used for downstream tasks")
     parser.add_argument("--subgraph_node_num", type=int, default="200",help="node num for each subgraph generated from dataset")
-    parser.add_argument("--pretrained_model", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GCN_2.pth", help="pretrained model path")
+    parser.add_argument("--pretrained_model", type=str, default="pretrained_gnn/Amazon_Photo+Amazon_Computer+Amazon_Fraud_Subgraph+Drop_GCN_0.pth", help="pretrained model path")
     parser.add_argument("--shot", type=int, default=100, help="shot for few-shot learning")
-    parser.add_argument("--k_hop", type=int, default=2, help="k-hop subgraph")
+    parser.add_argument("--k_hop", type=int, default=1, help="k-hop subgraph")
     parser.add_argument("--k_hop_nodes", type=int, default=512, help="max nodes num for k-hop subgraph")
     parser.add_argument("--input_dim", type=int, default=100, help="input dimension")
     parser.add_argument("--gnn_layer", type=int, default=2, help="layer num for gnn")
@@ -69,14 +69,14 @@ def get_downstream_args():
 
     # Downstream Tasks
     parser.add_argument("--lr", type=float, default=0.01, help="learning rate for downstream training")
-    parser.add_argument("--decay", type=float, default=1e-4, help="weight decay for downstream training")
+    parser.add_argument("--decay", type=float, default=0.0001, help="weight decay for downstream training")
     parser.add_argument("--max_epoches", type=int, default=1000, help="max epoches for downstream training")
     parser.add_argument("--ortho_weight", type=float, default=1, help="weight for ortho regularization")
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
-    parser.add_argument("--seed", type=int, default=42, help="random seed")
-    parser.add_argument("--patience", type=int, default=10, help="early stop steps")
+    parser.add_argument("--seed", type=int, default=1, help="random seed")
+    parser.add_argument("--patience", type=int, default=20, help="early stop steps")
     
     args = parser.parse_args()
     return args

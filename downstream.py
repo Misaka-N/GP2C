@@ -27,15 +27,15 @@ def get_induced_graph(data, num_classes, shot, k, max_node_num=200):
     edge_index = data.edge_index
     class_to_subgraphs = {i: [] for i in range(num_classes)}
 
-    pr = nx.pagerank(to_networkx(data), alpha=0.85)
+    # pr = nx.pagerank(to_networkx(data), alpha=0.85)
 
     for node, label in tqdm(zip(node_idx, data.y), total=data.x.size(0)):
         subgraph_node_idx, subgraph_edge_idx, _, _ = k_hop_subgraph(node, k, edge_index, relabel_nodes=True)
 
-        if len(subgraph_node_idx) > max_node_num:
-            subgraph_node_idx = sorted(subgraph_node_idx, key=lambda x: pr[x.item()], reverse=True)[:max_node_num]
-            subgraph_node_idx = torch.tensor(subgraph_node_idx)
-            subgraph_edge_idx, _ = subgraph(subgraph_node_idx, edge_index, relabel_nodes=True)
+        # if len(subgraph_node_idx) > max_node_num:
+        #     subgraph_node_idx = sorted(subgraph_node_idx, key=lambda x: pr[x.item()], reverse=True)[:max_node_num]
+        #     subgraph_node_idx = torch.tensor(subgraph_node_idx)
+        #     subgraph_edge_idx, _ = subgraph(subgraph_node_idx, edge_index, relabel_nodes=True)
         class_to_subgraphs[label.item()].append(Data(x=data.x[subgraph_node_idx], edge_index=subgraph_edge_idx, y=label))
     
     train_list, test_list = [], []
@@ -122,25 +122,25 @@ if __name__ == "__main__":
     else:
         answering = torch.load(args.answering_path)
 
+    # Downstream tasks
+    print("---Dealing with downstream task---")
+    gnn = GCN(gcn_layer_num=args.gnn_layer, input_dim=args.input_dim, hid_dim=args.hidden_dim, out_dim=args.output_dim)
+    gnn.load_state_dict(torch.load(args.pretrained_model))
+
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="l2s_" + args.dataset,
+        # track hyperparameters and run metadata
+        config=args.__dict__
+        )
+    # optimizer_ans = optim.Adam(answering.parameters(), lr=args.lr, weight_decay=args.decay)
+    # optimizer_pro = optim.Adam(prompt_pool.parameters(), lr=args.lr, weight_decay=args.decay)
+    optimizer = optim.Adam(list(prompt_pool.parameters()) + list(answering.parameters()), lr=args.lr, weight_decay=args.decay)
+    early_stopper = EarlyStopping(path1=args.prompt_path, patience=args.patience, min_delta=0, path2=args.answering_path)
+    cross_loss = nn.CrossEntropyLoss()
 
     if args.if_train:
-        # Downstream tasks
-        print("---Dealing with downstream task---")
-        gnn = GCN(gcn_layer_num=args.gnn_layer, input_dim=args.input_dim, hid_dim=args.hidden_dim, out_dim=args.output_dim)
-
-        # start a new wandb run to track this script
-        wandb.init(
-            # set the wandb project where this run will be logged
-            project="l2s_" + args.dataset,
-            # track hyperparameters and run metadata
-            config=args.__dict__
-            )
-        # optimizer_ans = optim.Adam(answering.parameters(), lr=args.lr, weight_decay=args.decay)
-        # optimizer_pro = optim.Adam(prompt_pool.parameters(), lr=args.lr, weight_decay=args.decay)
-        optimizer = optim.Adam(list(prompt_pool.parameters()) + list(answering.parameters()), lr=args.lr, weight_decay=args.decay)
-        early_stopper = EarlyStopping(path1=args.prompt_path, patience=args.patience, min_delta=0, path2=args.answering_path)
-        cross_loss = nn.CrossEntropyLoss()
-
         for epoch in range(args.max_epoches):
             gnn.eval()
 
@@ -239,8 +239,8 @@ if __name__ == "__main__":
                 recall = recall_score(label, predict, average='macro')
                 f1 = f1_score(label, predict, average='macro')
                 ap = average_precision_score(label, pred)
-                wandb.log({"val_accuracy": accuracy, "val_auc": auc, "val_recall": recall, "val_f1": f1})
-                print("Epoch: {} | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(epoch+1, accuracy, auc, recall, f1, ap))
+                wandb.log({"val_accuracy": accuracy, "val_auc": auc, "val_recall": recall, "val_f1": f1, 'val_ap': ap})
+                print("Epoch: {} | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(epoch+1, accuracy, auc, f1, recall, ap))
         wandb.finish()
 
     # test on the best model
