@@ -6,6 +6,7 @@ import torch.optim as optim
 from random import shuffle
 from utils.args import get_pretrain_args
 from utils.dataloader import pretrain_dataloader
+from torch_geometric.nn import global_mean_pool
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
 from torch_geometric.utils import to_undirected
@@ -28,9 +29,11 @@ class ContrastiveLearning(nn.Module):
                                        nn.PReLU(),
                                        nn.Linear(output_dim, output_dim))
         self.loss_bias = loss_bias
+        self.pool = global_mean_pool
         
     def forward_cl(self, x, edge_index, batch):
         x = self.GNN(x, edge_index, batch)
+        x = self.pool(x, batch.long())
         x = self.projector(x)
 
         return x

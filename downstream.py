@@ -195,7 +195,11 @@ if __name__ == "__main__":
                 predict.append(pre.argmax(dim=1))
                 label.append(subgraph.y)
 
-            train_loss = loss_fn(cross_loss, torch.stack(pred).squeeze(1), torch.stack(label).squeeze(1), None)
+            pred = torch.stack(pred).squeeze()
+            predict = torch.stack(predict).squeeze()
+            label = torch.stack(label).squeeze()   
+
+            train_loss = loss_fn(cross_loss, pred, label, None)
 
             optimizer.zero_grad()
             train_loss.backward()
@@ -232,8 +236,13 @@ if __name__ == "__main__":
 
                     predict.append(pre.argmax(dim=1))
                     pre = F.softmax(pre, dim=-1)
-                    pred.append(pre.detach().squeeze())
+                    pred.append(pre.detach())
                     label.append(subgraph.y)
+
+                pred = torch.stack(pred).squeeze()
+                predict = torch.stack(predict).squeeze()
+                label = torch.stack(label).squeeze() 
+
                 accuracy = accuracy_score(label, predict)
                 auc = roc_auc_score(label, pred, multi_class='ovr')
                 recall = recall_score(label, predict, average='macro')
@@ -266,14 +275,17 @@ if __name__ == "__main__":
 
         predict.append(pre.argmax(dim=1))
         pre = F.softmax(pre, dim=-1)
-        pred.append(pre.detach().squeeze())
+        pred.append(pre.detach())
         label.append(subgraph.y)
+
+    pred = torch.stack(pred).squeeze()
+    predict = torch.stack(predict).squeeze()
+    label = torch.stack(label).squeeze()   
 
     accuracy = accuracy_score(label, predict)
     auc = roc_auc_score(label, pred, multi_class='ovr')
     recall = recall_score(label, predict, average='macro')
     f1 = f1_score(label, predict, average='macro')
     ap = average_precision_score(label, pred)
-    print("Final: | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(accuracy, auc, recall, f1, ap))
-
+    print("Final: | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(accuracy, auc, f1, recall, ap))
     

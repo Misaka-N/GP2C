@@ -9,8 +9,8 @@ def get_pretrain_args():
                         help="Datasets used for pretrain")
     parser.add_argument("--subgraphs", type=int, default=256, help="subgraph num for each dataset")
     parser.add_argument("--temperature", type=float, default=0.1, help="temperature for similarity calculation")
-    parser.add_argument("--augment", type=str, nargs='+', default=["Subgraph", "Subgraph"], help="Augmentation for pretraining(Only support two methods)")
-    parser.add_argument("--aug_ratio", type=float, nargs='+', default=[0.8, 0.8], help="Augmentation ratio")
+    parser.add_argument("--augment", type=str, nargs='+', default=["Subgraph", "Drop"], help="Augmentation for pretraining(Only support two methods)")
+    parser.add_argument("--aug_ratio", type=float, nargs='+', default=[0.2, 0.2], help="Augmentation ratio")
 
     # Pretrained model
     parser.add_argument("--gnn_layer", type=int, default=2, help="layer num for gnn")
@@ -30,11 +30,11 @@ def get_pretrain_args():
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate for pretraining")
     parser.add_argument("--decay", type=float, default=0.0001, help="weight decay for pretraining")
     parser.add_argument("--max_epoches", type=int, default=300, help="max epoches for pretraining")
-    parser.add_argument("--loss_bias", type=float, default=0.0, help="extra loss that will be added to contrastive loss calculation")
+    parser.add_argument("--loss_bias", type=float, default=10.0, help="extra loss that will be added to contrastive loss calculation")
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
-    parser.add_argument("--seed", type=int, default=1, help="random seed")
+    parser.add_argument("--seed", type=int, default=3407, help="random seed")
     parser.add_argument("--patience", type=int, default=10, help="early stop steps")
     
     args = parser.parse_args()
@@ -75,7 +75,7 @@ def get_downstream_args():
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
-    parser.add_argument("--seed", type=int, default=1, help="random seed")
+    parser.add_argument("--seed", type=int, default=3407, help="random seed")
     parser.add_argument("--patience", type=int, default=20, help="early stop steps")
     
     args = parser.parse_args()
