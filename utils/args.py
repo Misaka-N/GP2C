@@ -9,8 +9,8 @@ def get_pretrain_args():
                         help="Datasets used for pretrain")
     parser.add_argument("--subgraphs", type=int, default=256, help="subgraph num for each dataset")
     parser.add_argument("--temperature", type=float, default=0.1, help="temperature for similarity calculation")
-    parser.add_argument("--augment", type=str, nargs='+', default=["Subgraph", "Drop"], help="Augmentation for pretraining(Only support two methods)")
-    parser.add_argument("--aug_ratio", type=float, nargs='+', default=[0.2, 0.2], help="Augmentation ratio")
+    parser.add_argument("--augment", type=str, nargs='+', default=["Anonymize", "Mask"], help="Augmentation for pretraining(Only support two methods)")
+    parser.add_argument("--aug_ratio", type=float, nargs='+', default=[0.3, 0.3], help="Augmentation ratio")
 
     # Pretrained model
     parser.add_argument("--gnn_layer", type=int, default=2, help="layer num for gnn")

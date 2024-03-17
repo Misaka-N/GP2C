@@ -262,7 +262,8 @@ if __name__ == "__main__":
         # set the wandb project where this run will be logged
         project="l2s_pretrain",
         # track hyperparameters and run metadata
-        config=args.__dict__
+        config=args.__dict__,
+        name=args.augment[0]+str(args.aug_ratio[0])+" + "+args.augment[1]+str(args.aug_ratio[1])+" "+str(args.seed)
         )
 
     for epoch in range(args.max_epoches):

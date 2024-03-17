@@ -11,7 +11,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from models.prompt import PromptComponent
 from collections import defaultdict
-from utils.args import get_downstream_args
+from utils.args import get_downstream_args, get_pretrain_args
 from utils.tools import set_random
 from utils.dataloader import pretrain_dataloader
 from torch_geometric.nn import global_mean_pool
@@ -128,11 +128,14 @@ if __name__ == "__main__":
     gnn.load_state_dict(torch.load(args.pretrained_model))
 
     # start a new wandb run to track this script
+    args_pre = get_pretrain_args()
+    print(args.seed,args_pre.seed)
     wandb.init(
         # set the wandb project where this run will be logged
         project="l2s_" + args.dataset,
         # track hyperparameters and run metadata
-        config=args.__dict__
+        config=args.__dict__,
+        name=args_pre.augment[0]+str(args_pre.aug_ratio[0])+" + "+args_pre.augment[1]+str(args_pre.aug_ratio[1])+" "+str(args_pre.seed)
         )
     # optimizer_ans = optim.Adam(answering.parameters(), lr=args.lr, weight_decay=args.decay)
     # optimizer_pro = optim.Adam(prompt_pool.parameters(), lr=args.lr, weight_decay=args.decay)
