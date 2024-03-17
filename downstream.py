@@ -18,7 +18,7 @@ from torch_geometric.nn import global_mean_pool
 from torch_geometric.data import Data
 from torch_geometric.utils import k_hop_subgraph, degree, subgraph, from_networkx, to_networkx
 from torch_geometric.loader import DataLoader
-from utils.tools import EarlyStopping
+from utils.tools import EarlyStopping, label_smoothing
 from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, recall_score, average_precision_score
 
 
@@ -65,11 +65,11 @@ def gram_loss(prompt):
     return loss
 
 
-def loss_fn(cross_fn, predict, label, prompt):
-    cross_loss = cross_fn(predict, label)
+def loss_fn(loss_fn, predict, label, prompt=None):
+    loss = loss_fn(predict, label)
     if prompt != None:
-        cross_loss += args.ortho_weight * ortho_penalty(prompt)
-    return cross_loss
+        loss += args.ortho_weight * ortho_penalty(prompt)
+    return loss
 
 
 def ortho_penalty(t):
@@ -142,45 +142,14 @@ if __name__ == "__main__":
     optimizer = optim.Adam(list(prompt_pool.parameters()) + list(answering.parameters()), lr=args.lr, weight_decay=args.decay)
     early_stopper = EarlyStopping(path1=args.prompt_path, patience=args.patience, min_delta=0, path2=args.answering_path)
     cross_loss = nn.CrossEntropyLoss()
+    kl_loss = torch.nn.KLDivLoss(reduction='batchmean')
 
     if args.if_train:
         for epoch in range(args.max_epoches):
             gnn.eval()
-
-            # # tune answering function
-            # prompt_pool.eval()
-            # answering.train()
-            # predict, label, pred = [], [], []
-            # for _, subgraph in enumerate(train_set):
-            #     predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch)
-
-            #     read_out = predict_feat.mean(dim=0)
-            #     summed_prompt = prompt_pool(read_out, args.if_train)
-
-            #     sim_matrix = torch.matmul(predict_feat, summed_prompt.t())
-            #     node_emb = predict_feat + torch.matmul(sim_matrix, summed_prompt)
-
-            #     graph_emb = global_mean_pool(node_emb, subgraph.batch.long())
-                
-            #     pre = answering(graph_emb)
-
-            #     pred.append(pre)
-            #     predict.append(pre.argmax(dim=1))
-            #     label.append(subgraph.y)
-
-            # train_loss = loss_fn(cross_loss, torch.stack(pred).squeeze(1), torch.stack(label).squeeze(1), None)
-
-            # optimizer_ans.zero_grad()
-            # train_loss.backward()
-            # optimizer_ans.step()
-                
-            # accuracy = accuracy_score(label, predict)
-            # print("Epoch: {} | Answering Function | Loss: {:.4f} | ACC: {:.4f}".format(epoch, train_loss, accuracy))
-
-            # tune prompt
             prompt_pool.train()
             answering.train()
-            predict, label, pred = [], [], []
+            pred, soft_labels = [], []
             for _, subgraph in enumerate(train_set):
                 predict_feat = gnn(subgraph.x, subgraph.edge_index, subgraph.batch)
 
@@ -191,26 +160,26 @@ if __name__ == "__main__":
                 node_emb = predict_feat * torch.matmul(sim_matrix, summed_prompt)
 
                 graph_emb = global_mean_pool(node_emb, subgraph.batch.long())
-                
                 pre = answering(graph_emb)
 
                 pred.append(pre)
-                predict.append(pre.argmax(dim=1))
-                label.append(subgraph.y)
+                soft_label = label_smoothing(subgraph.y, args.label_smoothing, num_classes)
+                soft_labels.append(soft_label)
 
-            pred = torch.stack(pred).squeeze()
-            predict = torch.stack(predict).squeeze()
-            label = torch.stack(label).squeeze()   
+            pred = torch.cat(pred, dim=0)
+            soft_labels = torch.cat(soft_labels, dim=0)
 
-            train_loss = loss_fn(cross_loss, pred, label, None)
+            train_loss = loss_fn(kl_loss, F.log_softmax(pred, dim=-1), soft_labels, None)
 
             optimizer.zero_grad()
             train_loss.backward()
             optimizer.step()
-                
-            accuracy = accuracy_score(label, predict)
-            wandb.log({"train_loss": train_loss, "train_accuracy": accuracy})
-            print("Epoch: {} | Prompt | Loss: {:.4f} | ACC: {:.4f}".format(epoch, train_loss, accuracy))
+
+            _, predict = torch.max(pred, dim=1)
+            _, labels = torch.max(soft_labels, dim=1)
+            accuracy = accuracy_score(labels.cpu().numpy(), predict.cpu().numpy())
+            wandb.log({"train_loss": train_loss.item(), "train_accuracy": accuracy})
+            print("Epoch: {} | Loss: {:.4f} | ACC: {:.4f}".format(epoch, train_loss.item(), accuracy))
 
             early_stopper((prompt_pool, answering), train_loss.item())
             if early_stopper.early_stop:
