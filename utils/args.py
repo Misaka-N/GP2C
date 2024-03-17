@@ -9,8 +9,8 @@ def get_pretrain_args():
                         help="Datasets used for pretrain")
     parser.add_argument("--subgraphs", type=int, default=256, help="subgraph num for each dataset")
     parser.add_argument("--temperature", type=float, default=0.1, help="temperature for similarity calculation")
-    parser.add_argument("--augment", type=str, nargs='+', default=["Subgraph", "Drop"], help="Augmentation for pretraining(Only support two methods)")
-    parser.add_argument("--aug_ratio", type=float, nargs='+', default=[0.2, 0.2], help="Augmentation ratio")
+    parser.add_argument("--augment", type=str, nargs='+', default=["Subgraph", "Anonymize"], help="Augmentation for pretraining(Only support two methods)")
+    parser.add_argument("--aug_ratio", type=float, nargs='+', default=[0.7, 0.3], help="Augmentation ratio")
 
     # Pretrained model
     parser.add_argument("--gnn_layer", type=int, default=2, help="layer num for gnn")
@@ -26,7 +26,7 @@ def get_pretrain_args():
     parser.add_argument("--threshold", type=float, default=0.15, help="threshold for connecting nodes")
 
     # Pretrain Process
-    parser.add_argument("--batch_size", type=int, default=8, help="subgraph num of one batch")
+    parser.add_argument("--batch_size", type=int, default=16, help="subgraph num of one batch")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate for pretraining")
     parser.add_argument("--decay", type=float, default=0.0001, help="weight decay for pretraining")
     parser.add_argument("--max_epoches", type=int, default=300, help="max epoches for pretraining")
@@ -34,7 +34,7 @@ def get_pretrain_args():
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
-    parser.add_argument("--seed", type=int, default=3407, help="random seed")
+    parser.add_argument("--seed", type=int, default=1, help="random seed")
     parser.add_argument("--patience", type=int, default=10, help="early stop steps")
     
     args = parser.parse_args()
@@ -72,10 +72,11 @@ def get_downstream_args():
     parser.add_argument("--decay", type=float, default=0.0001, help="weight decay for downstream training")
     parser.add_argument("--max_epoches", type=int, default=1000, help="max epoches for downstream training")
     parser.add_argument("--ortho_weight", type=float, default=1, help="weight for ortho regularization")
+    parser.add_argument("--label_smoothing", type=float, default=0.1, help="label_smoothing for over-fitting")
 
     # Trainging enviorment
     parser.add_argument("--gpu", type=int, default=-1, help="GPU id to use, -1 for CPU")
-    parser.add_argument("--seed", type=int, default=3407, help="random seed")
+    parser.add_argument("--seed", type=int, default=1, help="random seed")
     parser.add_argument("--patience", type=int, default=20, help="early stop steps")
     
     args = parser.parse_args()

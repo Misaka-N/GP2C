@@ -19,6 +19,13 @@ def cosine_similarity(x1, x2):
     return sim_matrix
 
 
+def label_smoothing(labels, epsilon, num_classes):
+    soft_labels = torch.full((labels.size(0), num_classes), fill_value=epsilon / (num_classes - 1), device=labels.device)
+    soft_labels.scatter_(1, labels.unsqueeze(1), (1 - epsilon) + epsilon / (num_classes - 1))
+    
+    return soft_labels
+
+
 class EarlyStopping:
     def __init__(self, path1, patience=10, min_delta=0, path2=None):
         """
