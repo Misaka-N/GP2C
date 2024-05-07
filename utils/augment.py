@@ -64,8 +64,9 @@ def node_dropping(graph, ratio):
     edge_index = [[idx_dict[edge_index[0, n]], idx_dict[edge_index[1, n]]] for n in range(edge_num) 
                   if (not edge_index[0, n] in idx_drop) and (not edge_index[1, n] in idx_drop)] # drop edges that connected with dropped nodes
     
-    graph.edge_index = torch.tensor(edge_index).transpose_(0, 1)
-    graph.x = graph.x[idx_nondrop]
+    if len(edge_index) != 0:
+        graph.edge_index = torch.tensor(edge_index).transpose_(0, 1)
+        graph.x = graph.x[idx_nondrop]
 
     return graph
 
@@ -95,7 +96,7 @@ def attribute_masking(graph, ratio):
 
 def graph_views(graph, aug, ratio):
     if aug == 'Subgraph':
-        aug_graph = subgraph_extraction(graph, ratio)
+        aug_graph = subgraph_extraction(graph, 1 - ratio)
     elif aug == 'Anonymize':
         aug_graph = anonymization(graph, ratio)
     elif aug == 'Drop':
@@ -104,5 +105,9 @@ def graph_views(graph, aug, ratio):
         aug_graph = edge_perturbation(graph, ratio)
     elif aug == 'Mask':
         aug_graph = attribute_masking(graph, ratio)
+    elif aug == 'None':
+        aug_graph = graph
+    else:
+        raise ValueError('Using an unsupported method: ', aug)
 
     return aug_graph

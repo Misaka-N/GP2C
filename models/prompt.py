@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
 from utils.tools import cosine_similarity
+import torch.nn.functional as F
 
 class PromptComponent(nn.Module):
 
-    def __init__(self, prompt_num, prompt_dim, input_dim, layers):
+    def __init__(self, prompt_num, prompt_dim, input_dim):
         super(PromptComponent, self).__init__()
 
         # Initialize
@@ -33,20 +34,20 @@ class PromptComponent(nn.Module):
         return basis
     
 
-    def new_task_init(self):
+    def new_task_init(self, device):
         self.task_cnt += 1
-        self.attention.append(nn.Parameter(torch.randn(self.input_dim), requires_grad=True)) # Attention weight
+        self.attention.append(nn.Parameter(torch.randn(self.prompt_dim).to(device), requires_grad=True)) # Attention weight
 
-        new_key = nn.Parameter(torch.randn(self.input_dim), requires_grad=True) # Prompt key
+        new_key = nn.Parameter(torch.randn(self.prompt_dim), requires_grad=True).to(device) # Prompt key
         norm = new_key.norm(p=2)
         self.keys.append(new_key / (norm + 1e-8))
 
-        prompt_tmp = nn.Parameter(torch.randn(self.prompt_num, self.prompt_dim), requires_grad=True)
+        prompt_tmp = nn.Parameter(torch.randn(self.prompt_num, self.prompt_dim), requires_grad=True).to(device)
         new_prompt = self.gram_schmidt(prompt_tmp)
         self.prompt.append(new_prompt)
 
 
-    def freeze_prompt_params(self, train): 
+    def freeze_prompt_params(self,train): 
         if train:
             last_id = self.task_cnt - 1 
         else:
@@ -57,28 +58,23 @@ class PromptComponent(nn.Module):
                 attention.requires_grad = False
                 key.requires_grad = False
                 for param in prompt:
-                    if self.layers == -1:
-                        param.requires_grad = False
-                    else:
-                        for p in param:
-                            p.requires_grad = False
+                    param.requires_grad = False
             id += 1
     
 
-    def forward(self, query, train=False):
-        self.freeze_prompt_params(train)
+    def forward(self, query):
+        # self.freeze_prompt_params(train)
 
         # Calculating for similarity weight
         weight_prompt = []
         for attention, key, prompt in zip(self.attention, self.keys, self.prompt):
-            sim = cosine_similarity(query * attention.unsqueeze(0), key.unsqueeze(0))
+            sim = F.cosine_similarity(query * attention.unsqueeze(0), key.unsqueeze(0), dim=-1, eps=1e-8)
             updated_prompt = prompt * sim
             weight_prompt.append(updated_prompt)
 
-        # Get summed prompt
-        summed_prompt = nn.Parameter(torch.zeros_like(self.prompt[0]), requires_grad=True)
+        summed_prompts = torch.zeros(self.prompt_num, self.prompt_dim, device=query.device)
 
         for prompt in weight_prompt:
-            summed_prompt = torch.add(summed_prompt, prompt)
+            summed_prompts = torch.add(summed_prompts, prompt)
 
-        return summed_prompt
+        return summed_prompts

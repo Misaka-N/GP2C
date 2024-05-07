@@ -11,8 +11,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from torch_geometric.transforms import SVDFeatureReduction
-from torch_geometric.datasets import Planetoid, Amazon, Yelp
+from torch_geometric.datasets import Planetoid, Amazon, Yelp, Coauthor, CitationFull
 import torch.nn.functional as F
+from sklearn.neighbors import NearestNeighbors
 
 
 def csv_reader(data_path):
@@ -34,18 +35,33 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         num_classes = 2
         g = data[0]
         g = dgl.to_homogeneous(g, ndata=['feature','label','train_mask','val_mask','test_mask'])
-        src, dst = g.edges()
-        edge_index = torch.stack([src, dst], dim=0)
-        x = g.ndata['feature']
-        y = g.ndata['label']
+        if dataname == "Yelp_Fraud":
+            selected_nodes = np.random.choice(g.num_nodes(), 15000, replace=False)
+            sg = g.subgraph(selected_nodes)
+            for ntype in sg.ntypes:
+                for feature in g.nodes[ntype].data:
+                    sg.nodes[ntype].data[feature] = g.nodes[ntype].data[feature][sg.ndata[dgl.NID]]
+    
+            for etype in sg.etypes:
+                for feature in g.edges[etype].data:
+                    sg.edges[etype].data[feature] = g.edges[etype].data[feature][sg.edata[dgl.EID]]
+            src, dst = sg.edges()
+            edge_index = torch.stack([src, dst], dim=0)
+            x = sg.ndata['feature']
+            y = sg.ndata['label']
+        else:
+            src, dst = g.edges()
+            edge_index = torch.stack([src, dst], dim=0)
+            x = g.ndata['feature']
+            y = g.ndata['label']
         data = Data(x=x, edge_index=edge_index, y=y)
 
     elif dataset == 'S-FFSD':
         num_classes = 2
-        if os.path.exists('data/S-FFSD'):
-            g = dgl.load_graphs(f'data/S-FFSD/S-FFSD_graph.bin')[0][0]
+        if os.path.exists('../autodl-tmp/data/S-FFSD/'):
+            g = dgl.load_graphs(f'../autodl-tmp/data/S-FFSD/S-FFSD_graph.bin')[0][0]
         else:
-            data = csv_reader('data/S-FFSD/S-FFSD_feat.csv')
+            data = csv_reader('../autodl-tmp/data/S-FFSD/S-FFSD_feat.csv')
             data = data.fillna(0)
             cal_list = ["Source", "Target", "Location", "Type"]
             for col in cal_list:
@@ -75,34 +91,51 @@ def pretrain_dataloader(input_dim:int, dataset:str):
             scaler = StandardScaler()
 
             g.nodes['trans'].data['label'] = torch.from_numpy(labels.to_numpy())
-            g.nodes['trans'].data['feature'] = torch.from_numpy(scaler.fit_transform(feat_data))
+            g.nodes['trans'].data['feature'] = torch.from_numpy(scaler.fit_transform(feat_data)).double() 
 
             g = dgl.to_homogeneous(g,ndata=['feature','label'])
 
-            g_path = f'data/S-FFSD/S-FFSD_graph.bin'
+            g_path = f'../autodl-tmp/data/S-FFSD/S-FFSD_graph.bin'
             dgl.data.utils.save_graphs(g_path, [g])
         src, dst = g.edges()
         edge_index = torch.stack([src, dst], dim=0)
-        x = g.ndata['feature']
+        x = g.ndata['feature'].double() 
         y = g.ndata['label']
-        data = Data(x=x, edge_index=edge_index, y=y)
+        data = Data(x=x.double(), edge_index=edge_index, y=y)
         dataname = 'S-FFSD'
 
     elif dataset == 'Amazon_Photo' or dataset == 'Amazon_Computer':
         if dataset == 'Amazon_Photo':
-            dataset = Amazon(root='data/', name='photo')
+            dataset = Amazon(root='../autodl-tmp/data/', name='photo')
             dataname = 'Photo'
         elif dataset == 'Amazon_Computer':
-            dataset = Amazon(root='data/', name='computers')
+            dataset = Amazon(root='../autodl-tmp/data/', name='computers')
             dataname = 'Computers'
         num_classes = dataset.num_classes
         data = dataset.data
 
     elif dataset == 'Cora' or dataset == 'CiteSeer' or dataset == 'PubMed':
-        dataset = Planetoid(root='dataset/', name=dataset)
+        dataname = dataset
+        dataset = Planetoid(root='../autodl-tmp/data/', name=dataset)
         data = dataset.data
         num_classes = dataset.num_classes
 
+    elif dataset == "Coauthor_CS" or dataset == "Coauthor_Physics":
+        if dataset == 'Coauthor_CS':
+            dataset = Coauthor(root='../autodl-tmp/data/', name='CS')
+            dataname = 'CS'
+        elif dataset == 'Coauthor_Physics':
+            dataset = Coauthor(root='../autodl-tmp/data/', name='Physics')
+            dataname = 'Physics'
+        num_classes = dataset.num_classes
+        data = dataset.data
+
+    elif dataset == "DBLP":
+        dataset = CitationFull(root='../autodl-tmp/data/', name='DBLP')
+        dataname = "dblp"
+        num_classes = dataset.num_classes
+        data = dataset.data
+        
     if data.x.shape[1] < input_dim:
         padding_size = input_dim - data.x.shape[1]
         data.x = F.pad(data.x, (0, padding_size), 'constant', 0)

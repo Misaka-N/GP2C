@@ -129,13 +129,21 @@ if __name__ == "__main__":
         data, dataname, num_classes = pretrain_dataloader(input_dim=args.input_dim, dataset=args.dataset)
         print("---Getting induced graphs: " + args.dataset + "---")
         train_set, val_set, test_set, train_idx, val_idx, test_idx = get_induced_graph(data, num_classes, args.shot, args.k_hop, args.k_hop_nodes, args.batch_size)
+        
     else:
         raise NotImplementedError("Only support node level tasks now.")
 
-    # Get prompt pool
-    print("---Creating new prompt pool---")
-    prompt_pool = PromptComponent(prompt_num=args.prompt_num, prompt_dim=args.prompt_dim, input_dim=args.input_dim).to(device)
-    prompt_pool.new_task_init(device)
+    
+    # load trained prompt pools
+    print("---Loading prompt pools: existing pools---")
+    print("path: ", args.load_components_path)
+    prompt_pools:"list[PromptComponent]" = [torch.load(component_path).to(device) for component_path in args.load_components_path]
+    
+    # init weights
+    weights = torch.zeros(len(prompt_pools)).to(device)
+    weights[0] = 0.0
+    weights = weights.reshape(-1,1,1)
+    weights = torch.nn.Parameter(weights)
 
     # answering head
     answering = nn.Sequential(
@@ -154,22 +162,23 @@ if __name__ == "__main__":
     gnn.load_state_dict(torch.load(args.pretrained_model))
 
     
-    # optimizer_ans = optim.Adam(answering.parameters(), lr=args.lr, weight_decay=args.decay)
-    # optimizer_pro = optim.Adam(prompt_pool.parameters(), lr=args.lr, weight_decay=args.decay)
-    optimizer = optim.Adam(list(prompt_pool.parameters()) + list(answering.parameters()), lr=args.lr, weight_decay=args.decay)
+    optimizer = optim.Adam(list(answering.parameters())+ [weights], lr=args.lr, weight_decay=args.decay)
     early_stopper = EarlyStopping(path1=args.prompt_path, patience=args.patience, min_delta=0)
     cross_loss = nn.CrossEntropyLoss()
     kl_loss = torch.nn.KLDivLoss(reduction='batchmean')
 
+
     # start a new wandb
     wandb.init(
-        project="l2s_downstream_" + dataname,
+        project="l2splus_downstream_"+ args.dataset,
         config=args.__dict__,
         name=str(args.seed)
         )
+
     for epoch in range(args.max_epoches):
         gnn.eval()
-        prompt_pool.train()
+        for prompt_pool in prompt_pools:
+            prompt_pool.train()
         answering.train()
         for step, (node_subgraph, node_idx) in enumerate(zip(train_set, train_idx)):
             pred, tot_loss = [], []
@@ -182,12 +191,20 @@ if __name__ == "__main__":
 
                 # read_out = graph_feat[node_idx[i]]
                 read_out = graph_feat.mean(dim=0)
-                summed_prompt = prompt_pool(read_out)
 
-                sim_matrix = torch.matmul(graph_feat, summed_prompt.t())
-                node_emb = graph_feat * torch.matmul(sim_matrix, summed_prompt)
+                node_embs = None
+                for prompt_pool in prompt_pools:
+                    summed_prompt = prompt_pool(read_out)
+                    sim_matrix = torch.matmul(graph_feat, summed_prompt.t())
+                    node_emb = graph_feat * torch.matmul(sim_matrix, summed_prompt)
+                    if node_embs == None:
+                        node_embs = node_emb.unsqueeze(0)
+                    else:
+                        node_embs = torch.concat([node_embs,node_emb.unsqueeze(0)],dim=0)
+                sum_node_emb = torch.sum(node_embs * weights,dim=0) 
+                node_emb = sum_node_emb
 
-                graph_emb = torch.concat((node_emb[node_idx[i]], torch.mean(node_emb, dim=0)), dim=-1)
+                graph_emb = torch.concat((node_emb[node_idx[i]], torch.mean(node_emb, dim=0)), dim=-1)                  
                 pre = answering(graph_emb).cpu()
 
                 pred.append(pre)
@@ -209,30 +226,40 @@ if __name__ == "__main__":
             print("Epoch: {} | Step: {} | Loss: {:.4f} | ACC: {:.4f}".format(epoch, step, train_loss.item(), accuracy))
 
         # tot_loss = torch.tensor(tot_loss)
-        # early_stopper((prompt_pool, answering), tot_loss.mean())
+        # early_stopper((prompt_pools, answering), tot_loss.mean())
         # if early_stopper.early_stop:
         #     print("Stopping training...")
         #     print("Best Score: {:.4f}".format(early_stopper.best_score))
         #     break
 
-        if (epoch + 1) % 8 == 0: 
-            # Evaluation
+        # Evaluation
+        if (epoch + 1) % 8 == 0:
+            print(weights)
             gnn.eval()
-            prompt_pool.eval()
+            for prompt_pool in prompt_pools:
+                prompt_pool.eval()
             answering.eval()
             predict, pred, label = [], [], []
             for _, (node_subgraph, node_idx) in tqdm(enumerate(zip(val_set, val_idx)), desc="Evaluating Process"):
                 predict_feat = gnn(node_subgraph.x.to(device), node_subgraph.edge_index.to(device), node_subgraph.batch.to(device))
-
                 read_out = predict_feat.mean(dim=0)
-                # read_out = predict_feat[node_idx]
-                summed_prompt = prompt_pool(read_out)
+                graph_feat = predict_feat
 
-                sim_matrix = torch.matmul(predict_feat, summed_prompt.t())
-                node_emb = predict_feat * torch.matmul(sim_matrix, summed_prompt)
+                node_embs = None
+                for prompt_pool in prompt_pools:
+                    summed_prompt = prompt_pool(read_out)
+                    sim_matrix = torch.matmul(graph_feat, summed_prompt.t())
+                    node_emb = graph_feat * torch.matmul(sim_matrix, summed_prompt)
+                    if node_embs == None:
+                        node_embs = node_emb.unsqueeze(0)
+                    else:
+                        node_embs = torch.concat([node_embs,node_emb.unsqueeze(0)],dim=0)
+                sum_node_emb = torch.sum(node_embs * weights,dim=0) 
+                node_emb = sum_node_emb
+
+                graph_emb = global_mean_pool(node_emb, node_subgraph.batch.long().to(device))
 
                 graph_emb = torch.concat((node_emb[node_idx], global_mean_pool(node_emb, node_subgraph.batch.long().to(device))), dim=-1)
-                
                 pre = answering(graph_emb).cpu()
 
                 predict.append(pre.argmax(dim=1))
@@ -257,32 +284,43 @@ if __name__ == "__main__":
             else:
                 ap = average_precision_score(label, pred)
 
-            early_stopper((prompt_pool, answering), -(accuracy+auc+recall+f1+ap))
+            early_stopper((prompt_pools, answering), -(accuracy+auc+recall+f1+ap))
             if early_stopper.early_stop:
                 print("Stopping training...")
                 print("Best Score: {:.4f}".format(early_stopper.best_score))
                 break
-
+            
             wandb.log({"val_accuracy": accuracy, "val_auc": auc, "val_recall": recall, "val_f1": f1, 'val_ap': ap})
             print("Epoch: {} | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(epoch+1, accuracy, auc, f1, recall, ap))
 
-
     # test on the best model
     print("Evaluating on the best model...")
+    prompt_pools,answering = torch.load(args.prompt_path)
+
     gnn.eval()
-    prompt_pool,answering = torch.load(args.prompt_path)
-    prompt_pool.eval()
+    for prompt_pool in prompt_pools:
+        prompt_pool.eval()
     answering.eval()
     predict, pred, label = [], [], []
+    print(len(test_set),len(test_idx))
     for _, (node_subgraph, node_idx) in tqdm(enumerate(zip(test_set, test_idx)), desc="Evaluating Process"):
         predict_feat = gnn(node_subgraph.x.to(device), node_subgraph.edge_index.to(device), node_subgraph.batch.to(device))
-
         read_out = predict_feat.mean(dim=0)
-        # read_out = predict_feat[node_idx]
-        summed_prompt = prompt_pool(read_out)
+        graph_feat = predict_feat
 
-        sim_matrix = torch.matmul(predict_feat, summed_prompt.t())
-        node_emb = predict_feat * torch.matmul(sim_matrix, summed_prompt)
+        node_embs = None
+        for prompt_pool in prompt_pools:
+            summed_prompt = prompt_pool(read_out)
+            sim_matrix = torch.matmul(graph_feat, summed_prompt.t())
+            node_emb = graph_feat * torch.matmul(sim_matrix, summed_prompt)
+            if node_embs == None:
+                node_embs = node_emb.unsqueeze(0)
+            else:
+                node_embs = torch.concat([node_embs,node_emb.unsqueeze(0)],dim=0)
+        sum_node_emb = torch.sum(node_embs * weights,dim=0) 
+        node_emb = sum_node_emb
+
+        graph_emb = global_mean_pool(node_emb, node_subgraph.batch.long().to(device))
 
         graph_emb = torch.concat((node_emb[node_idx], global_mean_pool(node_emb, node_subgraph.batch.long().to(device))), dim=-1)
         
@@ -309,6 +347,7 @@ if __name__ == "__main__":
         ap = average_precision_score(label, pred[ :,1]) # for binary classification
     else:
         ap = average_precision_score(label, pred)
+
     print("Final: | ACC: {:.4f} | AUC: {:.4f} | F1: {:.4f} | Recall : {:.4f} | AP: {:.4f}".format(accuracy, auc, f1, recall, ap))
     wandb.finish()
     
