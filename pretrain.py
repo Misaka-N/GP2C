@@ -185,7 +185,6 @@ if __name__ == "__main__":
         set_random(args.seed, False)
 
     # Get pretrain datasets
-    # TODO: Deal with Graph Tasks(Now only support node tasks)
     graph_list = []
     if args.task == 'node': # Node level tasks
         for dataset in args.dataset:
@@ -198,9 +197,15 @@ if __name__ == "__main__":
             data = Data(x=x, edge_index=edge_index)
             graphs = list(ClusterData(data=data, num_parts=args.subgraphs, save_dir='../autodl-tmp/data/{}/'.format(dataname)))
             graph_list.append(graphs)
-    else:
-        pass
+    elif args.task == 'graph':
+        for dataset in args.dataset:
+            print("---Downloading dataset: " + dataset + "---")
+            graphs, dataname, _ = pretrain_dataloader(input_dim=args.input_dim, dataset=dataset)  
+            graph_list.append(graphs)
+            # quit()
+            
 
+    
     # Get augmented graphs
     aug_datasets = []
     augmentation = Augmentation(augment=args.augment, ratio=args.aug_ratio, batch_size=args.batch_size)   

@@ -11,7 +11,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from torch_geometric.transforms import SVDFeatureReduction
-from torch_geometric.datasets import Planetoid, Amazon, Yelp, Coauthor, CitationFull
+from torch_geometric.datasets import Planetoid, Amazon, Yelp, Coauthor, CitationFull, TUDataset
 import torch.nn.functional as F
 from sklearn.neighbors import NearestNeighbors
 
@@ -135,6 +135,14 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         dataname = "dblp"
         num_classes = dataset.num_classes
         data = dataset.data
+
+    elif dataset == "COX2" or dataset == "DHFR" or dataset == "BZR" or dataset == "ENZYMES" or dataset == "PROTEINS":
+        dataset = TUDataset(root='../autodl-tmp/data/', name=dataset)
+        dataname = dataset.name
+        num_classes = dataset.num_classes
+        data = dataset.data
+        print(dataname,data.x.shape[1])
+
         
     if data.x.shape[1] < input_dim:
         padding_size = input_dim - data.x.shape[1]
@@ -143,4 +151,11 @@ def pretrain_dataloader(input_dim:int, dataset:str):
         svd_reduction = SVDFeatureReduction(out_channels=input_dim) # use SVD to uniform features dimension
         data = svd_reduction(data)
 
-    return data, dataname, num_classes
+    
+    if dataname == "COX2" or dataname == "DHFR" or dataname == "BZR" or dataname == "ENZYMES" or dataname == "PROTEINS":
+        dataset.data = data
+        dataset = dataset.shuffle()
+        graphs = [data for data in dataset]
+        return graphs, dataname, num_classes
+    else:
+        return data, dataname, num_classes
