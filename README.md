@@ -2,10 +2,6 @@
 
 This repository is the official implementation of GP2C and its enhanced version GP2C Plus. 
 
-Paper: [GP2C: General Graph Pretrainng and Prompt Learning Framework with Cross-domain Tasks ]()
-
-Author(s): *Anonymity*
-
 ![](./main.svg)
 
 
